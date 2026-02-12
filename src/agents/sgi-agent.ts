@@ -2018,43 +2018,7 @@ export async function processQuery(userMessage: string, _conversationHistory: Ar
       if (phoneNumber) await clearSession(phoneNumber)
       return {
         response: "Bienvenue sur ASI-ASSISTANT 2.0 🤖\n\nJe dispose de 18 outils pour vous aider !",
-        interactive: {
-          type: "list",
-          header: { type: "text", text: "ASI-ASSISTANT 2.0" },
-          body: { text: "Choisissez une catégorie ou posez votre question en langage naturel :" },
-          footer: { text: "Propulsé par ASI-BI • GPT-4o" },
-          action: {
-            button: "📋 Menu",
-            sections: [
-              {
-                title: "📊 DONNÉES & RAPPORTS",
-                rows: [
-                  { id: "kpis_global", title: "📈 KPIs Globaux", description: "Vue d'ensemble SGI" },
-                  { id: "finances_projet", title: "💰 Finances Projet", description: "CA, marge, GIFE" },
-                  { id: "stocks_alertes", title: "📦 Stocks & Alertes", description: "Inventaire critique" },
-                  { id: "projets_liste", title: "🚧 Projets", description: "Liste & recherche" }
-                ]
-              },
-              {
-                title: "🔧 GESTION OPÉRATIONNELLE",
-                rows: [
-                  { id: "equipements", title: "🚗 Équipements", description: "Parc véhicules" },
-                  { id: "marches", title: "📋 Marchés", description: "Contrats fournisseurs" },
-                  { id: "assurances", title: "🛡️ Assurances", description: "Polices & échéances" },
-                  { id: "signalements_top20", title: "📍 Top 20", description: "Signalements urgents" }
-                ]
-              },
-              {
-                title: "⚡ ACTIONS RAPIDES",
-                rows: [
-                  { id: "new_incident", title: "⚠️ Signaler Incident", description: "Déclarer problème" },
-                  { id: "new_signalement", title: "📝 Créer Signalement", description: "Nouveau Top 20" },
-                  { id: "recherche_libre", title: "🔍 Recherche Libre", description: "Question naturelle" }
-                ]
-              }
-            ]
-          }
-        },
+        interactive: createActionMenu(),
         data: null,
         action: 'menu'
       }
