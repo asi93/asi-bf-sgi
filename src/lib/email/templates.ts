@@ -47,7 +47,7 @@ export const EmailTemplates = {
         ${stats.stocksCritiques > 0 ? `<li>Articles en stock critique: <strong>${stats.stocksCritiques}</strong></li>` : ''}
       </ul>
       
-      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://asibi.netlify.app'}" class="button">
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://asi-bi.netlify.app'}" class="button">
         📈 Voir Dashboard Complet
       </a>
     `

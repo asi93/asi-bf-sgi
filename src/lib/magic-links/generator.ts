@@ -64,7 +64,7 @@ export async function generateMagicLink(
         }
 
         // Construct full URL
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://asibi.netlify.app'
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://asi-bi.netlify.app'
         const url = `${baseUrl}/ml/${token}`
 
         console.log('✅ Magic link created:', { token: token.substring(0, 10) + '...', expiresAt })
