@@ -164,12 +164,29 @@ export function createListMessage(
         throw new Error('Maximum 10 sections autorisées par WhatsApp')
     }
 
+    // Calculate total rows and truncate if necessary
+    let totalRows = 0
+    sections.forEach(s => totalRows += s.rows.length)
+
+    if (totalRows > 10) {
+        console.warn(`⚠️ Total rows ${totalRows} exceeds 10. Enforcing strict limit.`)
+        let remainingSlots = 10
+
+        // Filter and truncate sections ensuring we don't exceed 10 total rows
+        sections = sections.map(section => {
+            if (remainingSlots <= 0) return { ...section, rows: [] }
+
+            const count = Math.min(section.rows.length, remainingSlots)
+            const newRows = section.rows.slice(0, count)
+            remainingSlots -= count
+
+            return { ...section, rows: newRows }
+        }).filter(section => section.rows.length > 0)
+    }
+
     // Valider chaque section
     sections.forEach((section, sectionIndex) => {
-        if (section.rows.length === 0) {
-            throw new Error(`Section ${sectionIndex + 1} doit avoir au moins 1 row`)
-        }
-
+        // Double check individual section limit (already handled by logic above effectively, but keeping for safety)
         if (section.rows.length > 10) {
             console.warn(`⚠️ Section "${section.title}" tronquée à 10 rows (avait ${section.rows.length})`)
             section.rows = section.rows.slice(0, 10)
@@ -275,7 +292,7 @@ export function createActionMenu(): WhatsAppInteractive {
             }
         ],
         {
-            header: '📋 Menu Actions Rapides',
+            header: '📋 Menu Actions V2',
             footer: 'ASI-BF SGI'
         }
     )

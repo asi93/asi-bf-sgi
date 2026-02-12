@@ -240,6 +240,7 @@ export async function POST(request: NextRequest) {
 
     // Si réponse interactive
     if (aiResponse.interactive) {
+      console.log('📤 Sending interactive message:', JSON.stringify(aiResponse.interactive, null, 2))
       await sendWhatsAppInteractiveMessage(from, phoneNumberId, aiResponse.interactive as any)
       replyContent = JSON.stringify(aiResponse.interactive)
       replyType = 'interactive'
