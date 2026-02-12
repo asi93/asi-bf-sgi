@@ -3,7 +3,7 @@
  * Usage: npx tsx scripts/test-new-menu-flow.ts
  */
 
-import { processQuery } from '../src/agents/sgi-agent'
+import { processQueryWithAI } from '../src/agents/sgi-agent'
 import { createGreetingResponse, createActionMenu } from '../src/lib/whatsapp/interactive'
 
 async function testMenuFlow() {
@@ -15,7 +15,7 @@ async function testMenuFlow() {
     // Test 1: Salutation → Bouton Menu
     console.log('\n📌 TEST 1: Salutation → Bouton Menu')
     console.log('─'.repeat(80))
-    const test1 = await processQuery('bonjour', [], testPhone)
+    const test1 = await processQueryWithAI('bonjour', testPhone)
     console.log('✅ R\u00e9ponse:', test1.response)
     console.log('✅ Interactive type:', test1.interactive?.type)
     console.log('✅ Nombre de boutons:', test1.interactive?.action.buttons?.length)
@@ -24,7 +24,7 @@ async function testMenuFlow() {
     // Test 2: Clic Menu → Liste d'actions
     console.log('\n📌 TEST 2: Affichage Menu Actions')
     console.log('─'.repeat(80))
-    const test2 = await processQuery('[SHOW_ACTION_MENU]', [], testPhone)
+    const test2 = await processQueryWithAI('[SHOW_ACTION_MENU]', testPhone)
     console.log('✅ Réponse:', test2.response)
     console.log('✅ Interactive type:', test2.interactive?.type)
     console.log('✅ Nombre de sections:', test2.interactive?.action.sections?.length)
