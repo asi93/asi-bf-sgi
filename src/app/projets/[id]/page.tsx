@@ -9,19 +9,20 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 
 interface ProjectDetailPageProps {
-    params: {
+    params: Promise<{
         id: string
-    }
+    }>
 }
 
 export default async function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     const supabase = createServerClient()
+    const { id } = await params
 
     // Récupérer le projet
     const { data: projet, error } = await supabase
         .from('projets')
         .select('*')
-        .eq('projet_id', params.id)
+        .eq('projet_id', id)
         .single()
 
     if (error || !projet) {
@@ -32,7 +33,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     const { data: depenses } = await supabase
         .from('gife')
         .select('montant_liquide_fcfa')
-        .eq('projet_id', params.id)
+        .eq('projet_id', id)
 
     const totalDepenses = depenses?.reduce((sum, d) => sum + (d.montant_liquide_fcfa || 0), 0) || 0
     const ca = projet.montant_ht_fcfa || 0
@@ -43,7 +44,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     const { data: incidents } = await supabase
         .from('signalements')
         .select('*')
-        .eq('projet_id', params.id)
+        .eq('projet_id', id)
         .eq('statut', 'Ouvert')
         .order('created_at', { ascending: false })
         .limit(5)
@@ -52,14 +53,14 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     const { data: equipements } = await supabase
         .from('equipements')
         .select('*')
-        .eq('projet_id', params.id)
+        .eq('projet_id', id)
         .limit(5)
 
     // Récupérer les marchés
     const { data: marches } = await supabase
         .from('marches')
         .select('*')
-        .eq('projet_id', params.id)
+        .eq('projet_id', id)
         .limit(5)
 
     // Statut badge
@@ -198,7 +199,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                                     <p className="text-lg font-semibold">{tauxExecution}%</p>
                                 </div>
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/finances?projet=${params.id}`}>
+                                    <Link href={`/finances?projet=${id}`}>
                                         <TrendingUp className="h-4 w-4 mr-2" />
                                         Voir détails
                                     </Link>
@@ -216,7 +217,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                                     Incidents & Signalements
                                 </CardTitle>
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/signalements?projet=${params.id}`}>
+                                    <Link href={`/signalements?projet=${id}`}>
                                         Voir tous
                                     </Link>
                                 </Button>
@@ -255,7 +256,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                             <Separator className="my-4" />
 
                             <Button className="w-full" variant="outline" asChild>
-                                <Link href={`/signalements/new?projet=${params.id}`}>
+                                <Link href={`/signalements/new?projet=${id}`}>
                                     <Plus className="h-4 w-4 mr-2" />
                                     Signaler un incident
                                 </Link>
@@ -272,7 +273,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                                     Équipements
                                 </CardTitle>
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/equipements?projet=${params.id}`}>
+                                    <Link href={`/equipements?projet=${id}`}>
                                         Voir tous
                                     </Link>
                                 </Button>
@@ -314,7 +315,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                                     Marchés
                                 </CardTitle>
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/marches?projet=${params.id}`}>
+                                    <Link href={`/marches?projet=${id}`}>
                                         Voir tous
                                     </Link>
                                 </Button>
@@ -361,21 +362,21 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                         </CardHeader>
                         <CardContent className="space-y-2">
                             <Button className="w-full" variant="default" asChild>
-                                <Link href={`/signalements/new?projet=${params.id}`}>
+                                <Link href={`/signalements/new?projet=${id}`}>
                                     <Plus className="h-4 w-4 mr-2" />
                                     Signaler incident
                                 </Link>
                             </Button>
 
                             <Button className="w-full" variant="outline" asChild>
-                                <Link href={`/finances?projet=${params.id}`}>
+                                <Link href={`/finances?projet=${id}`}>
                                     <DollarSign className="h-4 w-4 mr-2" />
                                     Voir finances
                                 </Link>
                             </Button>
 
                             <Button className="w-full" variant="outline" asChild>
-                                <Link href={`/equipements?projet=${params.id}`}>
+                                <Link href={`/equipements?projet=${id}`}>
                                     <Truck className="h-4 w-4 mr-2" />
                                     Gérer équipements
                                 </Link>
@@ -384,7 +385,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                             <Separator className="my-4" />
 
                             <Button className="w-full" variant="ghost" asChild>
-                                <Link href={`/projets?highlight=${params.id}`}>
+                                <Link href={`/projets?highlight=${id}`}>
                                     Voir dans la liste
                                 </Link>
                             </Button>

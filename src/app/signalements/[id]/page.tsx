@@ -10,19 +10,20 @@ import Image from 'next/image'
 import { formatDate } from '@/lib/utils'
 
 interface SignalementDetailPageProps {
-    params: {
+    params: Promise<{
         id: string
-    }
+    }>
 }
 
 export default async function SignalementDetailPage({ params }: SignalementDetailPageProps) {
     const supabase = createServerClient()
+    const { id } = await params
 
     // Récupérer le signalement
     const { data: signalement, error } = await supabase
         .from('signalements')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (error || !signalement) {
