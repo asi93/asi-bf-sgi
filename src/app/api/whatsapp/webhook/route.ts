@@ -297,9 +297,9 @@ export async function POST(request: NextRequest) {
 
       const { data: projets } = await supabase
         .from('projets')
-        .select('projet_id, nom, localisation')
-        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
-        .order('nom')
+        .select('projet_id, nom_projet, ville_village, acronyme')
+        .or(`nom_projet.ilike.%${searchTerm}%,acronyme.ilike.%${searchTerm}%,ville_village.ilike.%${searchTerm}%,projet_id.ilike.%${searchTerm}%`)
+        .order('nom_projet')
         .limit(10)
 
       if (!projets || projets.length === 0) {
@@ -316,8 +316,8 @@ export async function POST(request: NextRequest) {
       const { createListMessage } = await import('@/lib/whatsapp/interactive')
       const rows = projets.map(p => ({
         id: `incident_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
-        description: p.localisation ? p.localisation.substring(0, 72) : '...'
+        title: p.nom_projet.substring(0, 24),
+        description: p.ville_village ? p.ville_village.substring(0, 72) : (p.acronyme || '...')
       }))
 
       const listMessage = createListMessage(
@@ -336,13 +336,13 @@ export async function POST(request: NextRequest) {
 
       const { data: projet } = await supabase
         .from('projets')
-        .select('nom')
+        .select('nom_projet')
         .eq('projet_id', projectId)
         .single()
 
       await updateSession(from, 'WORKFLOW_INCIDENT_CATEGORY', {
         projectId,
-        projectName: projet?.nom
+        projectName: projet?.nom_projet
       })
 
       const { createCategoryList } = await import('@/lib/whatsapp/interactive')
@@ -477,9 +477,9 @@ export async function POST(request: NextRequest) {
       // Rechercher projets
       const { data: projets } = await supabase
         .from('projets')
-        .select('projet_id, nom, statut')
-        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
-        .order('nom')
+        .select('projet_id, nom_projet, statut, ville_village, acronyme')
+        .or(`nom_projet.ilike.%${searchTerm}%,acronyme.ilike.%${searchTerm}%,ville_village.ilike.%${searchTerm}%,projet_id.ilike.%${searchTerm}%`)
+        .order('nom_projet')
         .limit(20)
 
       if (!projets || projets.length === 0) {
@@ -496,7 +496,7 @@ export async function POST(request: NextRequest) {
       const { createListMessage } = await import('@/lib/whatsapp/interactive')
       const rows = projets.map(p => ({
         id: `media_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
+        title: p.nom_projet.substring(0, 24),
         description: p.statut
       }))
 
@@ -516,20 +516,20 @@ export async function POST(request: NextRequest) {
 
       const { data: projet } = await supabase
         .from('projets')
-        .select('nom')
+        .select('nom_projet')
         .eq('projet_id', projectId)
         .single()
 
       await updateSession(from, 'WORKFLOW_MEDIA_UPLOAD', {
         projectId,
-        projectName: projet?.nom || 'Projet inconnu',
+        projectName: projet?.nom_projet || 'Projet inconnu',
         mediaUrls: []
       })
 
       await sendWhatsAppMessage(
         from,
         phoneNumberId,
-        `Projet : **${projet?.nom}** ✅\n\n📸 Envoyez vos photos/vidéos :\n\n_Vous pouvez envoyer plusieurs médias. Tapez "terminé" quand vous avez fini._`
+        `Projet : **${projet?.nom_projet}** ✅\n\n📸 Envoyez vos photos/vidéos :\n\n_Vous pouvez envoyer plusieurs médias. Tapez "terminé" quand vous avez fini._`
       )
       return NextResponse.json({ status: 'ok' })
     }
