@@ -348,3 +348,46 @@ export function createQuickActions(context: {
         { footer: 'Sélectionnez une action' }
     )
 }
+/**
+ * Créer la liste des catégories d'incidents
+ */
+export function createCategoryList(): WhatsAppInteractive {
+    return createListMessage(
+        'Sélectionnez la catégorie de l\'incident :',
+        'Voir les catégories',
+        [
+            {
+                title: 'Catégories',
+                rows: [
+                    { id: 'cat_securite', title: '⚠️ Sécurité', description: 'Accidents, E.P.I, Risques' },
+                    { id: 'cat_technique', title: '🔧 Technique', description: 'Matériel, Panne, Qualité' },
+                    { id: 'cat_main_doeuvre', title: '👷 Main d\'oeuvre', description: 'Absences, Conflits' },
+                    { id: 'cat_materiaux', title: '🏗️ Matériaux', description: 'Rupture, Qualité, Stock' },
+                    { id: 'cat_autre', title: '📦 Autre', description: 'Divers' }
+                ]
+            }
+        ],
+        { header: '📋 Catégories' }
+    )
+}
+
+/**
+ * Créer la liste des niveaux de gravité
+ */
+export function createSeverityList(): WhatsAppInteractive {
+    return createListMessage(
+        'Quel est le niveau de gravité ?',
+        'Voir niveaux',
+        [
+            {
+                title: 'Niveaux de gravité',
+                rows: [
+                    { id: 'sev_mineur', title: '🟢 Mineur', description: 'Observation, pas d\'arrêt' },
+                    { id: 'sev_modere', title: '🟡 Modéré', description: 'Action requise sous 48h' },
+                    { id: 'sev_critique', title: '🔴 Critique', description: 'Action immédiate requise' }
+                ]
+            }
+        ],
+        { header: '⚠️ Gravité' }
+    )
+}

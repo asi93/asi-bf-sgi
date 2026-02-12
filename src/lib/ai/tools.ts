@@ -235,6 +235,14 @@ export const tools = {
     },
 
     create_incident: async (args: z.infer<typeof CreateIncidentSchema>, phoneNumber: string) => {
+        // 🚨 WHATSAPP REDIRECT: Prevent direct AI creation on WhatsApp
+        if (phoneNumber && !phoneNumber.startsWith('WEB_')) {
+            return {
+                success: false,
+                message: "Pour signaler un incident sur WhatsApp, veuillez utiliser le menu interactif : [Menu] > [🚨 Signaler un incident]."
+            }
+        }
+
         const supabase = createServerClient()
         const { data, error } = await supabase.from('incidents').insert({
             type_incident: args.type,
@@ -500,6 +508,14 @@ export const tools = {
     },
 
     create_signalement: async (args: z.infer<typeof CreateSignalementSchema>, phoneNumber: string) => {
+        // 🚨 WHATSAPP REDIRECT: Prevent direct AI creation on WhatsApp
+        if (phoneNumber && !phoneNumber.startsWith('WEB_')) {
+            return {
+                success: false,
+                message: "Pour ajouter un signalement sur WhatsApp, veuillez utiliser le menu interactif : [Menu] > [📸 Ajouter médias] ou [🚨 Signaler un incident]."
+            }
+        }
+
         const supabase = createServerClient()
         const { data, error } = await supabase.from('signalements').insert({
             item: args.item,

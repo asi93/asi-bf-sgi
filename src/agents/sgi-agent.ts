@@ -22,6 +22,11 @@ const WHATSAPP_SYSTEM_PROMPT = `Tu es l'assistant SGI d'ASI-Track pour WhatsApp.
 2. Calcule TOUJOURS les écarts vs moyenne
 3. Identifie les alertes critiques
 
+⚠️ ACTIONS SPÉCIFIQUES (GUIDÉES) :
+- Pour "Signaler un incident" ou "Ajouter médias" : NE PAS essayer de le faire via l'IA. 
+- Redirige TOUJOURS vers le MENU INTERACTIF.
+- Réponds : "Pour cette action, veuillez utiliser le menu interactif : [Menu] > [🚨 Signaler un incident] ou [📸 Ajouter médias]".
+
 📝 FORMAT DE SORTIE (DIFFÉRENT DU WEB) :
 - Chiffre clé + 1 insight si critique
 - Émojis pour lisibilité mobile (🔴 🟢 ⚠️ ✅)
@@ -78,8 +83,8 @@ RÈGLES STRICTES D'UTILISATION DES OUTILS :
 4. **Données volumineuses** : Si les données retournées sont volumineuses (tableaux), fais un résumé très court et précise qu'un lien complet est disponible.
 
 5. **Actions** :
-   - Déclarer un incident → create_incident
-   - Créer un signalement Top 20 → create_signalement
+   - Déclarer un incident → Pour WhatsApp, rediriger vers le MENU. Pour le WEB, utiliser create_incident.
+   - Créer un signalement Top 20 → Pour WhatsApp, rediriger vers le MENU. Pour le WEB, utiliser create_signalement.
 
 6. **Graphiques** (NOUVEAU) :
    - Pour visualiser des tendances, comparaisons, distributions → generate_chart
@@ -510,194 +515,14 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
       userMessage = 'État des ressources : stocks en alerte, articles critiques, disponibilité véhicules et équipements'
     }
 
-    // 🔄 WORKFLOWS - Signaler incident
-    if (userMessage === '[START_WORKFLOW:signaler_incident]') {
-      console.log('🚨 [AI Agent] Starting incident reporting workflow')
-      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_TYPE', {})
-
-      return {
-        response: `🚨 **Signaler un Incident**\n\nQuel type d'incident souhaitez-vous signaler ?`,
-        interactive: createListMessage(
-          'Sélectionnez le type d\'incident :',
-          'Types d\'incidents',
-          [{
-            title: 'Types d\'incidents',
-            rows: [
-              { id: 'incident_type_securite', title: '🚨 Sécurité', description: 'Accident, zone dangereuse' },
-              { id: 'incident_type_materiel', title: '🔧 Matériel', description: 'Panne, équipement défectueux' },
-              { id: 'incident_type_retard', title: '⏰ Retard', description: 'Délai non respecté' },
-              { id: 'incident_type_qualite', title: '⚠️ Qualité', description: 'Non-conformité, défaut' },
-              { id: 'incident_type_autre', title: '📝 Autre', description: 'Autre type d\'incident' }
-            ]
-          }]
-        )
-      }
-    }
-
-
-
+    // 🔄 WORKFLOWS - (DEACTIVATED: MOVED TO WEBHOOK)
+    /*
+    if (userMessage === '[START_WORKFLOW:signaler_incident]') { ... }
+    
     // === GESTION DES WORKFLOWS MULTI-ÉTAPES ===
     const session = await getSession(phoneNumber)
-
-    // Commandes d'annulation/retour au menu (disponibles à tout moment dans un workflow)
-    const cancelCommands = ['annuler', 'cancel', 'menu', 'retour', 'stop', 'quitter']
-    const isWorkflowActive = session.state.startsWith('WORKFLOW_')
-
-    if (isWorkflowActive && cancelCommands.some(cmd => userMessage.toLowerCase().includes(cmd))) {
-      console.log('🔙 [AI Agent] User cancelling workflow')
-      await clearSession(phoneNumber)
-
-      return {
-        response: `❌ **Workflow Annulé**\n\nRetour au menu principal.`,
-        interactive: createActionMenu()
-      }
-    }
-
-    // WORKFLOW INCIDENT - Étape 2 : Sélection projet après type
-    if (session.state === 'WORKFLOW_INCIDENT_TYPE') {
-      const incidentType = userMessage.replace('incident_type_', '').replace(/_/g, ' ')
-
-      // Récupérer projets actifs
-      const supabase = createServerClient()
-      const { data: projets } = await supabase
-        .from('projets')
-        .select('projet_id, nom, statut')
-        .in('statut', ['En cours', 'Démarrage'])
-        .order('nom')
-        .limit(20)
-
-      if (!projets || projets.length === 0) {
-        await clearSession(phoneNumber)
-        return {
-          response: `❌ Aucun projet actif trouvé. Workflow annulé.`
-        }
-      }
-
-      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_PROJECT', { incidentType })
-
-      const rows = projets.map(p => ({
-        id: `incident_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
-        description: p.statut
-      }))
-
-      return {
-        response: `Type sélectionné : **${incidentType}**\n\nSur quel projet/chantier ?`,
-        interactive: createListMessage(
-          'Sélectionnez le projet :',
-          'Projets actifs',
-          [{ title: 'Projets actifs', rows }]
-        )
-      }
-    }
-
-    // WORKFLOW INCIDENT - Étape 3 : Description après projet
-    if (session.state === 'WORKFLOW_INCIDENT_PROJECT') {
-      const projectId = userMessage.replace('incident_project_', '')
-
-      // Récupérer nom du projet
-      const supabase = createServerClient()
-      const { data: projet } = await supabase
-        .from('projets')
-        .select('nom')
-        .eq('projet_id', projectId)
-        .single()
-
-      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_DESCRIPTION', {
-        ...session.data,
-        projectId,
-        projectName: projet?.nom || 'Projet inconnu'
-      })
-
-      return {
-        response: `Projet : **${projet?.nom}**\n\n📝 Décrivez l'incident (texte ou message vocal) :`
-      }
-    }
-
-    // WORKFLOW INCIDENT - Étape 4 : Photo optionnelle après description
-    if (session.state === 'WORKFLOW_INCIDENT_DESCRIPTION') {
-      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_PHOTO', {
-        ...session.data,
-        description: userMessage
-      })
-
-      return {
-        response: `Description enregistrée ✅\n\n📸 Souhaitez-vous joindre une photo ?\n\nEnvoyez une photo maintenant, ou tapez "non" pour terminer.`
-      }
-    }
-
-    // WORKFLOW INCIDENT - Étape 5 : Création finale
-    if (session.state === 'WORKFLOW_INCIDENT_PHOTO') {
-      const supabase = createServerClient()
-      let photoUrl = null
-
-      // Si c'est une photo (géré par webhook), elle sera dans session.data.photoUrl
-      if (session.data.photoUrl) {
-        photoUrl = session.data.photoUrl
-      }
-
-      // Créer le signalement
-      const { data: signalement, error } = await supabase
-        .from('signalements')
-        .insert({
-          item: session.data.incidentType,
-          chantier: session.data.projectName,
-          projet_id: session.data.projectId,
-          probleme: session.data.description,
-          photo_url: photoUrl,
-          statut: 'Ouvert',
-          created_by_phone: phoneNumber,
-          whatsapp_message_id: `WA_${Date.now()}`
-        })
-        .select()
-        .single()
-
-      await clearSession(phoneNumber)
-
-      if (error) {
-        console.error('Error creating signalement:', error)
-        return {
-          response: `❌ Erreur lors de la création de l'incident.\n\nVeuillez réessayer.`
-        }
-      }
-
-      // Générer Magic Link
-      const magicLink = await generateMagicLink({
-        resourceType: 'custom',
-        phoneNumber,
-        expiryHours: 48,
-        metadata: {
-          title: `Incident #${signalement.id}`,
-          description: signalement.probleme,
-          customRoute: `/signalements`
-        }
-      })
-
-      return {
-        response: `✅ **Incident Créé**\n\n📋 **Détails** :\n• ID : #${signalement.id}\n• Type : ${signalement.item}\n• Projet : ${signalement.chantier}\n• Description : ${signalement.probleme}\n${photoUrl ? '• Photo : Jointe ✅' : ''}\n\n🔗 Voir la fiche complète :\n${magicLink.url}\n\n_Lien valide 48h_`
-      }
-    }
-
-    // WORKFLOW MEDIA - Étape 2 : Upload après sélection projet
-    if (session.state === 'WORKFLOW_MEDIA_PROJECT') {
-      const projectId = userMessage.replace('media_project_', '')
-
-      const supabase = createServerClient()
-      const { data: projet } = await supabase
-        .from('projets')
-        .select('nom')
-        .eq('projet_id', projectId)
-        .single()
-
-      await updateSession(phoneNumber, 'WORKFLOW_MEDIA_UPLOAD', {
-        projectId,
-        projectName: projet?.nom || 'Projet inconnu'
-      })
-
-      return {
-        response: `Projet sélectionné : **${projet?.nom}**\n\n📸 Envoyez vos photos maintenant.\n\nVous pouvez envoyer plusieurs photos. Tapez "terminer" quand vous avez fini.`
-      }
-    }
+    // ...
+    */
 
 
 

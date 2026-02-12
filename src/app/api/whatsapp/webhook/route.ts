@@ -112,7 +112,16 @@ export async function POST(request: NextRequest) {
         // === Sélection dans les menus d'actions ===
         // Actions Incidents
         if (listReply.id === 'action_signaler_incident') {
-          messageText = '[START_WORKFLOW:signaler_incident]'
+          // Démarrer workflow incident
+          const { getSession, updateSession } = await import('@/lib/whatsapp/session')
+          await updateSession(from, 'WORKFLOW_INCIDENT_PROJECT_SEARCH', {})
+
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `🚨 **Signaler un Incident**\n\n🔍 Tapez le nom du projet ou de la ville :\n\n_Exemple : "Ecole", "Route", "Atakpamé"_`
+          )
+          return NextResponse.json({ status: 'ok' })
         } else if (listReply.id === 'action_carte_incidents') {
           // 🔧 FIX: Envoyer lien direct au lieu de passer par l'IA
           await sendWhatsAppMessage(
@@ -244,10 +253,189 @@ export async function POST(request: NextRequest) {
     })
 
     // ========================================
-    // WORKFLOW MÉDIAS - Gestion des étapes
+    // WORKFLOW INCIDENTS - Gestion des étapes
     // ========================================
     const { getSession, updateSession, clearSession } = await import('@/lib/whatsapp/session')
     const session = await getSession(from)
+
+    // Étape 2: Recherche projet
+    if (session.state === 'WORKFLOW_INCIDENT_PROJECT_SEARCH') {
+      const searchTerm = messageText.toLowerCase().trim()
+
+      if (searchTerm === 'annuler' || searchTerm === 'menu') {
+        await clearSession(from)
+        const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      const { data: projets } = await supabase
+        .from('projets')
+        .select('projet_id, nom, localisation')
+        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
+        .order('nom')
+        .limit(10)
+
+      if (!projets || projets.length === 0) {
+        await sendWhatsAppMessage(
+          from,
+          phoneNumberId,
+          `❌ Aucun projet trouvé pour "${searchTerm}".\n\n🔄 Essayez un autre nom ou tapez "Menu" pour quitter.`
+        )
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      await updateSession(from, 'WORKFLOW_INCIDENT_PROJECT_SELECT', { searchTerm })
+
+      const { createListMessage } = await import('@/lib/whatsapp/interactive')
+      const rows = projets.map(p => ({
+        id: `incident_project_${p.projet_id}`,
+        title: p.nom.substring(0, 24),
+        description: p.localisation ? p.localisation.substring(0, 72) : '...'
+      }))
+
+      const listMessage = createListMessage(
+        'Sélectionnez le projet concerné :',
+        'Projets trouvés',
+        [{ title: 'Résultats', rows }]
+      )
+
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, listMessage)
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 3: Sélection Projet -> Catégorie
+    if (session.state === 'WORKFLOW_INCIDENT_PROJECT_SELECT' && interactiveContext?.id.startsWith('incident_project_')) {
+      const projectId = interactiveContext.id.replace('incident_project_', '')
+
+      const { data: projet } = await supabase
+        .from('projets')
+        .select('nom')
+        .eq('projet_id', projectId)
+        .single()
+
+      await updateSession(from, 'WORKFLOW_INCIDENT_CATEGORY', {
+        projectId,
+        projectName: projet?.nom
+      })
+
+      const { createCategoryList } = await import('@/lib/whatsapp/interactive')
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, createCategoryList())
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 4: Sélection Catégorie -> Gravité
+    if (session.state === 'WORKFLOW_INCIDENT_CATEGORY' && interactiveContext?.id.startsWith('cat_')) {
+      const categoryId = interactiveContext.id.replace('cat_', '')
+
+      await updateSession(from, 'WORKFLOW_INCIDENT_SEVERITY', {
+        ...session.data,
+        categoryId
+      })
+
+      const { createSeverityList } = await import('@/lib/whatsapp/interactive')
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, createSeverityList())
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 5: Sélection Gravité -> Description
+    if (session.state === 'WORKFLOW_INCIDENT_SEVERITY' && interactiveContext?.id.startsWith('sev_')) {
+      const severityId = interactiveContext.id.replace('sev_', '')
+
+      await updateSession(from, 'WORKFLOW_INCIDENT_DESCRIPTION', {
+        ...session.data,
+        severityId
+      })
+
+      await sendWhatsAppMessage(
+        from,
+        phoneNumberId,
+        `📝 **Description de l'incident**\n\nDécrivez le problème en quelques mots :\n_(Lieu exact, nature du problème, etc.)_`
+      )
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 6: Description -> Photo
+    if (session.state === 'WORKFLOW_INCIDENT_DESCRIPTION') {
+      const description = messageText.trim()
+
+      if (description.length < 3) {
+        await sendWhatsAppMessage(from, phoneNumberId, '⚠️ Description trop courte. Veuillez détailler le problème.')
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      await updateSession(from, 'WORKFLOW_INCIDENT_PHOTO', {
+        ...session.data,
+        description
+      })
+
+      const { createButtonsMessage } = await import('@/lib/whatsapp/interactive')
+      const photoPrompt = createButtonsMessage(
+        '📸 **Ajouter une photo ?**\n\nSouhaitez-vous joindre une photo de l\'incident ?',
+        [
+          { id: 'skip_photo', title: 'Non, passer' }
+        ],
+        { footer: 'Envoyez une photo directement ou cliquez sur "Passer"' }
+      )
+
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, photoPrompt)
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 7: Photo (ou Skip) -> Validation
+    if (session.state === 'WORKFLOW_INCIDENT_PHOTO') {
+      let photoUrl = null
+
+      if (messageType === 'image' && messageText.startsWith('[IMAGE:')) {
+        photoUrl = messageText.replace('[IMAGE:', '').replace(']', '')
+      } else if (interactiveContext?.id === 'skip_photo' || messageText.toLowerCase() === 'non' || messageText.toLowerCase() === 'passer') {
+        photoUrl = null
+      } else {
+        // Ignorer les autres messages ou redemander
+        await sendWhatsAppMessage(from, phoneNumberId, '📸 Envoyez une photo ou cliquez sur "Passer".')
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // ENREGISTREMENT DB
+      const incidentData = {
+        signalement_id: `SIG-${Date.now()}`, // Fallback ID, DB trigger should handle usually
+        projet_id: session.data.projectId,
+        categorie: session.data.categoryId,
+        gravite: session.data.severityId,
+        probleme: session.data.description, // Mapping description -> probleme
+        photo_url: photoUrl,
+        created_by_phone: from,
+        statut: 'non_echue',
+        date_echeance: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // +48h par défaut
+        // Champs obligatoires legacy
+        item: 'Incident WhatsApp',
+        action_entreprendre: 'A analyser'
+      }
+
+      const { error } = await supabase.from('signalements').insert(incidentData)
+
+      await clearSession(from)
+
+      if (error) {
+        console.error('Error creating incident:', error)
+        await sendWhatsAppMessage(from, phoneNumberId, '❌ Erreur lors de l\'enregistrement. Veuillez réessayer.')
+      } else {
+        await sendWhatsAppMessage(
+          from,
+          phoneNumberId,
+          `✅ **Incident Enregistré !**\n\n📋 **Récapitulatif** :\n• Projet : ${session.data.projectName}\n• Type : ${session.data.categoryId}\n• Gravité : ${session.data.severityId}\n\n🔗 Voir le suivi :\nhttps://asi-bi.netlify.app/signalements`
+        )
+      }
+
+      // Retour menu
+      const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // ========================================
+    // WORKFLOW MÉDIAS - Gestion des étapes
+    // ========================================
 
     // Étape 2: Recherche projet (user tape le nom)
     if (session.state === 'WORKFLOW_MEDIA_PROJECT_SEARCH') {
@@ -328,16 +516,31 @@ export async function POST(request: NextRequest) {
         const mediaUrls = session.data.mediaUrls || []
         mediaUrls.push(imageUrl)
 
+        // BATCHING LOGIC
+        const now = Date.now()
+        const lastUpdate = new Date(session.updated_at).getTime()
+        const timeDiff = now - lastUpdate
+
+        // Si c'est la 1ère photo ou si ça fait > 30s qu'on a rien reçu
+        // On notifie. Sinon on reste silencieux (mode rafale)
+        const isBatchStart = mediaUrls.length === 1 || timeDiff > 30000
+
         await updateSession(from, 'WORKFLOW_MEDIA_UPLOAD', {
           ...session.data,
           mediaUrls
-        })
+        }) // Update timestamp implicitly
 
-        await sendWhatsAppMessage(
-          from,
-          phoneNumberId,
-          `✅ Photo ${mediaUrls.length} enregistrée.\n\nEnvoyez d'autres photos ou tapez "terminé".`
-        )
+        if (isBatchStart) {
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `📸 **${mediaUrls.length}** média(s) reçu(s)...\n\n_Continuez d'envoyer vos photos._\n_Tapez "Terminé" pour valider._`
+          )
+        } else {
+          // SILENT MODE - Log only
+          console.log(`📸 Batch upload: ${mediaUrls.length} photos (Silent)`)
+        }
+
         return NextResponse.json({ status: 'ok' })
       }
 
