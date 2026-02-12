@@ -30,9 +30,9 @@ async function testMenuFlow() {
     console.log('✅ Nombre de sections:', test2.interactive?.action.sections?.length)
 
     const sections = test2.interactive?.action.sections || []
-    sections.forEach((section, i) => {
+    sections.forEach((section: any, i: number) => {
         console.log(`   Section ${i + 1}: ${section.title} (${section.rows.length} actions)`)
-        section.rows.forEach((row, j) => {
+        section.rows.forEach((row: any, j: number) => {
             console.log(`      ${j + 1}. ${row.title} (${row.id})`)
         })
     })
