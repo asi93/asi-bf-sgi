@@ -514,6 +514,74 @@ export const tools = {
 
         if (error) throw error
         return { success: true, signalement_id: data.id, message: "Signalement créé avec succès" }
+    },
+
+    generate_chart: async (args: any) => {
+        try {
+            const { type, title, data, xAxisLabel, yAxisLabel, colors } = args
+
+            // Default color palette
+            const defaultColors = [
+                '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
+                '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'
+            ]
+
+            const chartColors = colors || defaultColors
+
+            // Build Chart.js configuration
+            const chartConfig: any = {
+                type,
+                data: {
+                    labels: data.map((d: any) => d.label),
+                    datasets: [{
+                        label: title,
+                        data: data.map((d: any) => d.value),
+                        backgroundColor: type === 'pie' ? chartColors : chartColors[0] + '80',
+                        borderColor: chartColors[0],
+                        borderWidth: 2,
+                        fill: type === 'area'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        legend: {
+                            display: type === 'pie',
+                            position: 'bottom'
+                        }
+                    },
+                    scales: type !== 'pie' ? {
+                        x: {
+                            title: {
+                                display: !!xAxisLabel,
+                                text: xAxisLabel || ''
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: !!yAxisLabel,
+                                text: yAxisLabel || ''
+                            },
+                            beginAtZero: true
+                        }
+                    } : undefined
+                }
+            }
+
+            // Encode chart config for QuickChart.io
+            const chartConfigEncoded = encodeURIComponent(JSON.stringify(chartConfig))
+            const quickChartUrl = `https://quickchart.io/chart?c=${chartConfigEncoded}&width=800&height=400&backgroundColor=white`
+
+            return `![${title}](${quickChartUrl})\n\n📊 Graphique généré avec succès.`
+        } catch (error) {
+            console.error('Chart generation error:', error)
+            return '❌ Erreur lors de la génération du graphique.'
+        }
     }
 }
 
@@ -783,6 +851,70 @@ export const openAITools = [
                     project_id: { type: 'string', description: "ID du projet" }
                 },
                 required: ['item', 'problem', 'action', 'deadline']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'generate_chart',
+            description: `Generate a chart to visualize data. Use this when the user asks for graphs, charts, or visual representations of data.
+            
+            Chart types:
+            - bar: Compare values across categories (e.g., budgets by project)
+            - line: Show trends over time (e.g., incidents per month)
+            - pie: Show proportions/distribution (e.g., expense breakdown)
+            - scatter: Show correlations between two variables
+            - area: Show cumulative trends over time
+            
+            Always use this tool when data would be clearer as a visual representation.`,
+            parameters: {
+                type: 'object',
+                properties: {
+                    type: {
+                        type: 'string',
+                        enum: ['bar', 'line', 'pie', 'scatter', 'area'],
+                        description: 'Type of chart to generate'
+                    },
+                    title: {
+                        type: 'string',
+                        description: 'Chart title (e.g., "Budgets par Projet")'
+                    },
+                    data: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                label: {
+                                    type: 'string',
+                                    description: 'Label for this data point (e.g., project name, month)'
+                                },
+                                value: {
+                                    type: 'number',
+                                    description: 'Numeric value for this data point'
+                                }
+                            },
+                            required: ['label', 'value']
+                        },
+                        description: 'Array of data points to plot'
+                    },
+                    xAxisLabel: {
+                        type: 'string',
+                        description: 'Label for X axis (optional)'
+                    },
+                    yAxisLabel: {
+                        type: 'string',
+                        description: 'Label for Y axis (optional, e.g., "FCFA", "Nombre")'
+                    },
+                    colors: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: 'Optional array of hex colors for the chart'
+                    }
+                },
+                required: ['type', 'title', 'data']
             }
         }
     }

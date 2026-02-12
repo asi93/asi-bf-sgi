@@ -163,6 +163,68 @@ export default function ChatInterface() {
                       th: ({ node, ...props }) => <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-xs uppercase" {...props} />,
                       td: ({ node, ...props }) => <td className="border border-gray-300 px-3 py-2 text-xs" {...props} />,
                       tr: ({ node, ...props }) => <tr className="even:bg-gray-50/50" {...props} />,
+                      img: ({ node, src, alt, ...props }) => {
+                        const [isFullscreen, setIsFullscreen] = useState(false)
+
+                        return (
+                          <>
+                            <div className="my-4 relative group">
+                              <img
+                                src={src}
+                                alt={alt || 'Chart'}
+                                className="rounded-lg border border-gray-200 shadow-sm w-full cursor-pointer hover:shadow-md transition-shadow"
+                                onClick={() => setIsFullscreen(true)}
+                                {...props}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="icon"
+                                  className="h-8 w-8 bg-white shadow-md border"
+                                  onClick={() => setIsFullscreen(true)}
+                                  title="Plein écran"
+                                >
+                                  <Maximize2 className="h-4 w-4" />
+                                </Button>
+                                <a
+                                  href={src as string}
+                                  download={`chart-${Date.now()}.png`}
+                                  className="inline-flex items-center justify-center h-8 w-8 bg-white shadow-md border rounded-md hover:bg-gray-50"
+                                  title="Télécharger"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </a>
+                              </div>
+                            </div>
+
+                            {/* Fullscreen Modal */}
+                            {isFullscreen && (
+                              <div
+                                className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                                onClick={() => setIsFullscreen(false)}
+                              >
+                                <div className="relative max-w-6xl w-full">
+                                  <Button
+                                    variant="secondary"
+                                    size="icon"
+                                    className="absolute top-4 right-4 h-10 w-10 bg-white shadow-lg"
+                                    onClick={() => setIsFullscreen(false)}
+                                  >
+                                    <Minimize2 className="h-5 w-5" />
+                                  </Button>
+                                  <img
+                                    src={src}
+                                    alt={alt || 'Chart'}
+                                    className="w-full h-auto rounded-lg"
+                                  />
+                                </div>
+                              </div >
+                            )}
+                          </>
+                        )
+                      },
                     }}
                   >
                     {message.content}
