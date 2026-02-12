@@ -572,13 +572,13 @@ export async function processQuery(query: string, history: any[] = [], phoneNumb
       })
 
       return {
-        response: secondResponse.choices[0].message.content,
+        response: secondResponse.choices[0].message.content || "",
         tool_calls: message.tool_calls
       }
     }
 
     return {
-      response: message.content
+      response: message.content || ""
     }
 
   } catch (error) {
