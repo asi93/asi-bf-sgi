@@ -26,6 +26,8 @@ export type SessionState =
     | 'WORKFLOW_INCIDENT_PROJECT'
     | 'WORKFLOW_INCIDENT_PROJECT_SEARCH'
     | 'WORKFLOW_INCIDENT_PROJECT_SELECT'
+    | 'WORKFLOW_INCIDENT_CATEGORY'
+    | 'WORKFLOW_INCIDENT_SEVERITY'
     | 'WORKFLOW_INCIDENT_DESCRIPTION'
     | 'WORKFLOW_INCIDENT_OBSERVATIONS'
     | 'WORKFLOW_INCIDENT_URGENCY'
@@ -38,6 +40,17 @@ export type SessionState =
     | 'WORKFLOW_MEDIA_VALIDATE'
 
 export interface SessionData {
+    // Incident Workflow Data
+    projectId?: string
+    projectName?: string
+    categoryId?: string
+    categoryLabel?: string
+    severityId?: string
+    severityLabel?: string
+    description?: string
+    photoUrl?: string
+
+    // Legacy / Other Valid Data
     incidentType?: string
     incidentDescription?: string
     incidentPhotoId?: string
