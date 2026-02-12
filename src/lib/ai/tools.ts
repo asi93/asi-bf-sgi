@@ -164,7 +164,7 @@ export const tools = {
         let query = supabase.from('projets').select('*')
 
         if (args.search) {
-            // Recherche élargie : Nom, ID, Acronyme, Ville, Pays, Chef de projet
+            // Recherche élargie : Nom, ID, Acronyme, Ville, Pays
             query = query.or(`nom_projet.ilike.%${args.search}%,projet_id.eq.${args.search},acronyme.ilike.%${args.search}%,ville_village.ilike.%${args.search}%,pays.ilike.%${args.search}%`)
         } else {
             if (args.status && args.status.toLowerCase() !== 'tous') query = query.eq('statut', args.status)

@@ -19,6 +19,8 @@ import GeographicDistributionChart from '@/components/charts/GeographicDistribut
 import StockStatusGauge from '@/components/charts/StockStatusGauge'
 import IncidentsHeatmap from '@/components/charts/IncidentsHeatmap'
 import AIInsights from '@/components/dashboard/AIInsights'
+import DynamicInsights from '@/components/dashboard/DynamicInsights'
+import PredictiveTimeline from '@/components/dashboard/PredictiveTimeline'
 import { formatMontantCourt } from '@/lib/utils'
 
 interface Stats {
@@ -200,6 +202,14 @@ export default function Dashboard() {
                 </div>
               </Link>
             ))}
+          </div>
+        )}
+
+        {/* AI-Powered Features Grid */}
+        {!isLoading && stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <DynamicInsights stats={stats} chartData={chartData} />
+            <PredictiveTimeline />
           </div>
         )}
 

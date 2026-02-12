@@ -71,10 +71,86 @@ export async function POST(request: NextRequest) {
 
     // Déterminer le contenu du message selon le type
     let messageText = ''
+    let interactiveContext: { type: 'button' | 'list', id: string, title: string } | null = null
+
     if (message.type === 'text') {
       messageText = message.text?.body || ''
     } else if (message.type === 'interactive') {
-      messageText = message.interactive.button_reply?.id || message.interactive.list_reply?.id || ''
+      // Message interactif (réponse à un bouton ou une liste)
+      const buttonReply = message.interactive.button_reply
+      const listReply = message.interactive.list_reply
+
+      if (buttonReply) {
+        interactiveContext = {
+          type: 'button',
+          id: buttonReply.id,
+          title: buttonReply.title
+        }
+
+        // Convertir l'ID du bouton en requête naturelle
+        if (buttonReply.id === 'menu') {
+          // Afficher le menu d'actions
+          messageText = '[SHOW_ACTION_MENU]'
+        } else if (buttonReply.id === 'stocks') {
+          messageText = 'Affiche-moi les stocks disponibles'
+        } else if (buttonReply.id === 'projets') {
+          messageText = 'Liste des projets en cours'
+        } else if (buttonReply.id === 'incidents') {
+          messageText = 'Incidents ouverts'
+        } else {
+          messageText = buttonReply.title || buttonReply.id
+        }
+
+        console.log('🔘 Réponse bouton:', interactiveContext, '→', messageText)
+      } else if (listReply) {
+        interactiveContext = {
+          type: 'list',
+          id: listReply.id,
+          title: listReply.title
+        }
+
+        // === Sélection dans les menus d'actions ===
+        // Actions Incidents
+        if (listReply.id === 'action_signaler_incident') {
+          messageText = '[START_WORKFLOW:signaler_incident]'
+        } else if (listReply.id === 'action_carte_incidents') {
+          messageText = 'Affiche la liste complète des incidents'
+        }
+        // Actions Médias
+        else if (listReply.id === 'action_ajouter_medias') {
+          messageText = '[START_WORKFLOW:ajouter_medias]'
+        } else if (listReply.id === 'action_documents') {
+          messageText = 'Affiche les documents du projet'
+        } else if (listReply.id === 'action_galerie_photos') {
+          messageText = 'Affiche la galerie des photos par projet'
+        }
+        // KPIs
+        else if (listReply.id === 'kpi_global') {
+          messageText = 'Montre-moi les KPIs globaux (vue d\'ensemble de tous les projets, budgets, avancement, incidents)'
+        } else if (listReply.id === 'kpi_finances') {
+          messageText = 'Affiche les KPIs financiers: budgets consommés, dépenses, trésorerie'
+        } else if (listReply.id === 'kpi_operations') {
+          messageText = 'Affiche les KPIs opérationnels: avancement des chantiers et délais'
+        } else if (listReply.id === 'kpi_securite') {
+          messageText = 'Affiche les KPIs de sécurité: incidents, taux de gravité, zones à risque'
+        } else if (listReply.id === 'kpi_ressources') {
+          messageText = 'Affiche les KPIs ressources: niveau des stocks, disponibilité véhicules et équipements, personnel'
+        }
+        // === Sélection de ressources (projets/incidents) ===
+        else if (listReply.id.startsWith('project_')) {
+          const projectId = listReply.id.replace('project_', '')
+          messageText = `Détails du projet ${projectId}`
+        } else if (listReply.id.startsWith('incident_')) {
+          const incidentId = listReply.id.replace('incident_', '')
+          messageText = `Détails de l'incident ${incidentId}`
+        } else {
+          messageText = listReply.title || listReply.id
+        }
+
+        console.log('📜 Réponse liste:', interactiveContext, '→', messageText)
+      } else {
+        messageText = message.interactive.button_reply?.id || message.interactive.list_reply?.id || ''
+      }
     } else if (message.type === 'image') {
       // Pour les images, on passe un identifiant spécial
       const imageId = message.image?.id

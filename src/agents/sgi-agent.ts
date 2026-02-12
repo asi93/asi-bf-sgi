@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase'
 import { getSession, updateSession, clearSession } from '@/lib/whatsapp/session'
 import { generateMagicLink } from '@/lib/magic-links/generator'
 import { formatSignalementForWhatsApp, formatTop20ForWhatsApp, createMessageWithMagicLink, getStatusEmoji, formatTableForWhatsApp } from '@/lib/whatsapp/formatters'
+import { createGreetingResponse, createActionMenu, createListMessage, createMainMenu, createButtonsMessage, createQuickActions } from '@/lib/whatsapp/interactive'
 import OpenAI from 'openai'
 import { tools as aiTools, openAITools } from '@/lib/ai/tools'
 
@@ -154,11 +155,465 @@ function detectIntent(message: string): DetectedIntent {
  * Utilisé pour WhatsApp ET le chat web
  */
 export async function processQueryWithAI(userMessage: string, phoneNumber: string, externalHistory?: Array<{ role: string; content: string }>): Promise<AIResponse> {
-  console.log('🤖 AI Processing:', userMessage)
+  console.log('🤖 [AI Agent] START processQueryWithAI')
+  console.log('📝 [AI Agent] Message:', userMessage)
+  console.log('📞 [AI Agent] Phone:', phoneNumber || 'N/A')
+  console.log('📚 [AI Agent] External history length:', externalHistory?.length || 0)
 
   try {
-    // Récupérer la session pour l'historique
+    // Détection des salutations simples → Menu principal
+    const normalizedMsg = userMessage.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const greetings = ['bonjour', 'salut', 'hello', 'hi', 'hey', 'menu', 'aide', 'help']
+    const isSimpleGreeting = greetings.some(g => normalizedMsg === g || normalizedMsg === g + '!')
+
+    if (isSimpleGreeting) {
+      console.log('👋 [AI Agent] Greeting detected, showing greeting with menu button')
+      return {
+        response: "Bonjour ! Je suis l'assistant SGI.",
+        interactive: createGreetingResponse()
+      }
+    }
+
+    // Détection du clic sur bouton "Menu" → Afficher menu d'actions
+    if (userMessage === '[SHOW_ACTION_MENU]') {
+      console.log('📋 [AI Agent] Showing action menu')
+      return {
+        response: "Voici les actions rapides disponibles :",
+        interactive: createActionMenu()
+      }
+    }
+
+    // === HANDLERS MENU ACTIONS ===
+
+    // 🚨 INCIDENTS - Liste complète
+    if (userMessage.includes('Affiche la liste complète des incidents')) {
+      console.log('📋 [AI Agent] Generating Magic Link for incidents list')
+      const magicLink = await generateMagicLink({
+        resourceType: 'custom',
+        phoneNumber,
+        expiryHours: 48,
+        metadata: {
+          title: 'Liste des Incidents',
+          description: 'Tous les incidents signalés',
+          customRoute: '/signalements'
+        }
+      })
+
+      return {
+        response: `📊 **Liste des Incidents**\n\nConsultez tous les incidents signalés :\n\n${magicLink.url}\n\n_Lien valide 48h_`,
+        data: { magicLink: magicLink.url }
+      }
+    }
+
+    // 📸 GALERIE - Photos par projet
+    if (userMessage.includes('Affiche la galerie des photos par projet')) {
+      console.log('📸 [AI Agent] Generating Magic Link for gallery')
+      const magicLink = await generateMagicLink({
+        resourceType: 'custom',
+        phoneNumber,
+        expiryHours: 48,
+        metadata: {
+          title: 'Galerie Photos',
+          description: 'Photos des incidents par projet',
+          customRoute: '/gallery'
+        }
+      })
+
+      return {
+        response: `📸 **Galerie Photos**\n\nAccédez à la galerie complète :\n\n${magicLink.url}\n\n_Lien valide 48h_`,
+        data: { magicLink: magicLink.url }
+      }
+    }
+
+    // 📄 DOCUMENTS - Par projet (placeholder)
+    if (userMessage.includes('Affiche les documents du projet')) {
+      return {
+        response: `📄 **Documents Projet**\n\n⚠️ Fonctionnalité en cours de développement.\n\nEn attendant, vous pouvez :\n• Demander un projet spécifique\n• Consulter les rapports financiers`,
+        data: { status: 'coming_soon' }
+      }
+    }
+
+    // 📊 KPIs - Vue d'ensemble globale
+    if (userMessage.includes('Montre-moi les KPIs globaux')) {
+      // Laisser l'AI traiter avec ses outils
+      userMessage = 'Donne-moi une vue d\'ensemble complète : nombre de projets actifs, budget total, dépenses totales, incidents ouverts, niveau des stocks critiques'
+    }
+
+    // Action: KPIs globaux
+    if (userMessage === 'action_kpis') {
+      userMessage = 'Donne-moi une vue d\'ensemble complète des KPIs : projets, finances, stocks, équipements, incidents, et alertes.'
+    }
+
+    // Action: Insights IA
+    if (userMessage === 'action_insights_ia') {
+      try {
+        // Fetch stats
+        const supabase = createServerClient()
+        const statsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/stats`)
+        if (!statsResponse.ok) throw new Error('Failed to fetch stats')
+        const { stats } = await statsResponse.json()
+
+        // Fetch insights
+        const insightsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/insights/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stats })
+        })
+        if (!insightsResponse.ok) throw new Error('Failed to fetch insights')
+        const { insights } = await insightsResponse.json()
+
+        // Format pour WhatsApp (top 3)
+        const top3 = insights.slice(0, 3)
+        const emojis = { critical: '🔴', warning: '🟠', info: '🔵', success: '🟢' }
+
+        let msg = '💡 *Insights IA*\n\n'
+        top3.forEach((insight: any, idx: number) => {
+          msg += `${idx + 1}. ${emojis[insight.type as keyof typeof emojis]} *${insight.title}*\n`
+          msg += `   ${insight.message}\n`
+          if (insight.action) {
+            msg += `   ▸ ${insight.action.label}\n`
+          }
+          msg += '\n'
+        })
+        msg += '\n_Analyses générées par IA_'
+
+        return { response: msg }
+      } catch (error) {
+        console.error('[WhatsApp] Insights error:', error)
+        return { response: '❌ Impossible de récupérer les insights IA pour le moment.' }
+      }
+    }
+
+    // Action: Timeline Risques
+    if (userMessage === 'action_timeline_risques') {
+      try {
+        // Fetch timeline
+        const timelineResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/timeline/predict`)
+        if (!timelineResponse.ok) throw new Error('Failed to fetch timeline')
+        const { events } = await timelineResponse.json()
+
+        if (!events || events.length === 0) {
+          return { response: '📅 *Radar - Alertes*\n\n🟢 Aucun événement critique détecté.\n\n_Le système fonctionne normalement._' }
+        }
+
+        // Grouper par timeframe
+        const urgent = events.filter((e: any) => e.timeframe === '0-3j')
+        const attention = events.filter((e: any) => e.timeframe === '3-7j')
+        const surveiller = events.filter((e: any) => e.timeframe === '7-15j')
+
+        let msg = '📅 *Radar - Prochains 30 jours*\n\n'
+
+        if (urgent.length > 0) {
+          msg += '🔴 *URGENT (0-3 jours)*\n'
+          urgent.slice(0, 3).forEach((event: any) => {
+            msg += `• ${event.title}\n`
+            if (event.impact.operational) {
+              msg += `  ${event.impact.operational}\n`
+            }
+          })
+          msg += '\n'
+        }
+
+        if (attention.length > 0) {
+          msg += '🟠 *ATTENTION (3-7 jours)*\n'
+          attention.slice(0, 3).forEach((event: any) => {
+            msg += `• ${event.title}\n`
+          })
+          msg += '\n'
+        }
+
+        if (surveiller.length > 0 && (urgent.length + attention.length) < 4) {
+          msg += '🟡 *SURVEILLER (7-15 jours)*\n'
+          surveiller.slice(0, 2).forEach((event: any) => {
+            msg += `• ${event.title}\n`
+          })
+          msg += '\n'
+        }
+
+        msg += `\n_${events.length} événement(s) détecté(s)_`
+
+        return { response: msg }
+      } catch (error) {
+        console.error('[WhatsApp] Timeline error:', error)
+        return { response: '❌ Impossible de récupérer la timeline pour le moment.' }
+      }
+    }
+
+    // 💰 KPIs Finances
+    if (userMessage.includes('Affiche les KPIs financiers')) {
+      userMessage = 'Analyse financière globale : budgets totaux, dépenses engagées et liquidées, taux d\'exécution moyen, projets en dépassement'
+    }
+
+    // 🏗️ KPIs Opérations
+    if (userMessage.includes('Affiche les KPIs opérationnels')) {
+      userMessage = 'KPIs opérationnels : avancement moyen des projets, projets en retard, délais critiques'
+    }
+
+    // 🚨 KPIs Sécurité
+    if (userMessage.includes('Affiche les KPIs de sécurité')) {
+      userMessage = 'Analyse sécurité : nombre d\'incidents ouverts vs résolus, incidents par type, zones à risque, tendances'
+    }
+
+    // 📦 KPIs Ressources
+    if (userMessage.includes('Affiche les KPIs ressources')) {
+      userMessage = 'État des ressources : stocks en alerte, articles critiques, disponibilité véhicules et équipements'
+    }
+
+    // 🔄 WORKFLOWS - Signaler incident
+    if (userMessage === '[START_WORKFLOW:signaler_incident]') {
+      console.log('🚨 [AI Agent] Starting incident reporting workflow')
+      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_TYPE', {})
+
+      return {
+        response: `🚨 **Signaler un Incident**\n\nQuel type d'incident souhaitez-vous signaler ?`,
+        interactive: createListMessage(
+          'Sélectionnez le type d\'incident :',
+          'Types d\'incidents',
+          [{
+            title: 'Types d\'incidents',
+            rows: [
+              { id: 'incident_type_securite', title: '🚨 Sécurité', description: 'Accident, zone dangereuse' },
+              { id: 'incident_type_materiel', title: '🔧 Matériel', description: 'Panne, équipement défectueux' },
+              { id: 'incident_type_retard', title: '⏰ Retard', description: 'Délai non respecté' },
+              { id: 'incident_type_qualite', title: '⚠️ Qualité', description: 'Non-conformité, défaut' },
+              { id: 'incident_type_autre', title: '📝 Autre', description: 'Autre type d\'incident' }
+            ]
+          }]
+        )
+      }
+    }
+
+    // 📸 WORKFLOWS - Ajouter médias
+    if (userMessage === '[START_WORKFLOW:ajouter_medias]') {
+      console.log('📸 [AI Agent] Starting media upload workflow')
+
+      // Récupérer les projets actifs
+      const supabase = createServerClient()
+      const { data: projets } = await supabase
+        .from('projets')
+        .select('projet_id, nom, statut')
+        .in('statut', ['En cours', 'Démarrage'])
+        .order('nom')
+        .limit(20)
+
+      if (!projets || projets.length === 0) {
+        return {
+          response: `📸 **Ajouter des Médias**\n\n❌ Aucun projet actif trouvé.\n\nVeuillez d'abord créer un projet.`
+        }
+      }
+
+      await updateSession(phoneNumber, 'WORKFLOW_MEDIA_PROJECT', {})
+
+      const rows = projets.map(p => ({
+        id: `media_project_${p.projet_id}`,
+        title: p.nom.substring(0, 24),
+        description: p.statut
+      }))
+
+      return {
+        response: `📸 **Ajouter des Médias**\n\nSélectionnez le projet :`,
+        interactive: createListMessage(
+          'Choisissez un projet :',
+          'Projets actifs',
+          [{ title: 'Projets actifs', rows }]
+        )
+      }
+    }
+
+    // === GESTION DES WORKFLOWS MULTI-ÉTAPES ===
     const session = await getSession(phoneNumber)
+
+    // Commandes d'annulation/retour au menu (disponibles à tout moment dans un workflow)
+    const cancelCommands = ['annuler', 'cancel', 'menu', 'retour', 'stop', 'quitter']
+    const isWorkflowActive = session.state.startsWith('WORKFLOW_')
+
+    if (isWorkflowActive && cancelCommands.some(cmd => userMessage.toLowerCase().includes(cmd))) {
+      console.log('🔙 [AI Agent] User cancelling workflow')
+      await clearSession(phoneNumber)
+
+      return {
+        response: `❌ **Workflow Annulé**\n\nRetour au menu principal.`,
+        interactive: createActionMenu()
+      }
+    }
+
+    // WORKFLOW INCIDENT - Étape 2 : Sélection projet après type
+    if (session.state === 'WORKFLOW_INCIDENT_TYPE') {
+      const incidentType = userMessage.replace('incident_type_', '').replace(/_/g, ' ')
+
+      // Récupérer projets actifs
+      const supabase = createServerClient()
+      const { data: projets } = await supabase
+        .from('projets')
+        .select('projet_id, nom, statut')
+        .in('statut', ['En cours', 'Démarrage'])
+        .order('nom')
+        .limit(20)
+
+      if (!projets || projets.length === 0) {
+        await clearSession(phoneNumber)
+        return {
+          response: `❌ Aucun projet actif trouvé. Workflow annulé.`
+        }
+      }
+
+      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_PROJECT', { incidentType })
+
+      const rows = projets.map(p => ({
+        id: `incident_project_${p.projet_id}`,
+        title: p.nom.substring(0, 24),
+        description: p.statut
+      }))
+
+      return {
+        response: `Type sélectionné : **${incidentType}**\n\nSur quel projet/chantier ?`,
+        interactive: createListMessage(
+          'Sélectionnez le projet :',
+          'Projets actifs',
+          [{ title: 'Projets actifs', rows }]
+        )
+      }
+    }
+
+    // WORKFLOW INCIDENT - Étape 3 : Description après projet
+    if (session.state === 'WORKFLOW_INCIDENT_PROJECT') {
+      const projectId = userMessage.replace('incident_project_', '')
+
+      // Récupérer nom du projet
+      const supabase = createServerClient()
+      const { data: projet } = await supabase
+        .from('projets')
+        .select('nom')
+        .eq('projet_id', projectId)
+        .single()
+
+      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_DESCRIPTION', {
+        ...session.data,
+        projectId,
+        projectName: projet?.nom || 'Projet inconnu'
+      })
+
+      return {
+        response: `Projet : **${projet?.nom}**\n\n📝 Décrivez l'incident (texte ou message vocal) :`
+      }
+    }
+
+    // WORKFLOW INCIDENT - Étape 4 : Photo optionnelle après description
+    if (session.state === 'WORKFLOW_INCIDENT_DESCRIPTION') {
+      await updateSession(phoneNumber, 'WORKFLOW_INCIDENT_PHOTO', {
+        ...session.data,
+        description: userMessage
+      })
+
+      return {
+        response: `Description enregistrée ✅\n\n📸 Souhaitez-vous joindre une photo ?\n\nEnvoyez une photo maintenant, ou tapez "non" pour terminer.`
+      }
+    }
+
+    // WORKFLOW INCIDENT - Étape 5 : Création finale
+    if (session.state === 'WORKFLOW_INCIDENT_PHOTO') {
+      const supabase = createServerClient()
+      let photoUrl = null
+
+      // Si c'est une photo (géré par webhook), elle sera dans session.data.photoUrl
+      if (session.data.photoUrl) {
+        photoUrl = session.data.photoUrl
+      }
+
+      // Créer le signalement
+      const { data: signalement, error } = await supabase
+        .from('signalements')
+        .insert({
+          item: session.data.incidentType,
+          chantier: session.data.projectName,
+          projet_id: session.data.projectId,
+          probleme: session.data.description,
+          photo_url: photoUrl,
+          statut: 'Ouvert',
+          created_by_phone: phoneNumber,
+          whatsapp_message_id: `WA_${Date.now()}`
+        })
+        .select()
+        .single()
+
+      await clearSession(phoneNumber)
+
+      if (error) {
+        console.error('Error creating signalement:', error)
+        return {
+          response: `❌ Erreur lors de la création de l'incident.\n\nVeuillez réessayer.`
+        }
+      }
+
+      // Générer Magic Link
+      const magicLink = await generateMagicLink({
+        resourceType: 'custom',
+        phoneNumber,
+        expiryHours: 48,
+        metadata: {
+          title: `Incident #${signalement.id}`,
+          description: signalement.probleme,
+          customRoute: `/signalements`
+        }
+      })
+
+      return {
+        response: `✅ **Incident Créé**\n\n📋 **Détails** :\n• ID : #${signalement.id}\n• Type : ${signalement.item}\n• Projet : ${signalement.chantier}\n• Description : ${signalement.probleme}\n${photoUrl ? '• Photo : Jointe ✅' : ''}\n\n🔗 Voir la fiche complète :\n${magicLink.url}\n\n_Lien valide 48h_`
+      }
+    }
+
+    // WORKFLOW MEDIA - Étape 2 : Upload après sélection projet
+    if (session.state === 'WORKFLOW_MEDIA_PROJECT') {
+      const projectId = userMessage.replace('media_project_', '')
+
+      const supabase = createServerClient()
+      const { data: projet } = await supabase
+        .from('projets')
+        .select('nom')
+        .eq('projet_id', projectId)
+        .single()
+
+      await updateSession(phoneNumber, 'WORKFLOW_MEDIA_UPLOAD', {
+        projectId,
+        projectName: projet?.nom || 'Projet inconnu'
+      })
+
+      return {
+        response: `Projet sélectionné : **${projet?.nom}**\n\n📸 Envoyez vos photos maintenant.\n\nVous pouvez envoyer plusieurs photos. Tapez "terminer" quand vous avez fini.`
+      }
+    }
+
+    // WORKFLOW MEDIA - Étape 3 : Sauvegarde photos
+    if (session.state === 'WORKFLOW_MEDIA_UPLOAD') {
+      if (userMessage.toLowerCase() === 'terminer') {
+        const photoCount = session.data.photoCount || 0
+        await clearSession(phoneNumber)
+
+        return {
+          response: `✅ **Upload Terminé**\n\n${photoCount} photo(s) ajoutée(s) au projet **${session.data.projectName}**.\n\nElles sont maintenant visibles dans la galerie.`
+        }
+      }
+
+      // Photo reçue (gérée par webhook)
+      if (session.data.lastPhotoUrl) {
+        const photoCount = (session.data.photoCount || 0) + 1
+        await updateSession(phoneNumber, 'WORKFLOW_MEDIA_UPLOAD', {
+          ...session.data,
+          photoCount,
+          lastPhotoUrl: null
+        })
+
+        return {
+          response: `✅ Photo ${photoCount} enregistrée.\n\nEnvoyez d'autres photos ou tapez "terminer".`
+        }
+      }
+
+      return {
+        response: `📸 En attente de vos photos...\n\nTapez "terminer" pour finaliser.`
+      }
+    }
+
+    // Récupérer la session pour l'historique
     const history = externalHistory || session.data.history || []
 
     const messages: any[] = [
@@ -197,7 +652,56 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
            - Déclarer un incident → create_incident
            - Créer un signalement Top 20 → create_signalement
         
-        6. **Réponses** : Toujours en Français, professionnel et SUCCINCT. Maximum 3-4 lignes pour les résumés.`
+        ═══════════════════════════════════════════════════════════════
+        🧠 RÈGLES D'INTELLIGENCE ET D'ANALYSE (PRIORITÉ ABSOLUE)
+        ═══════════════════════════════════════════════════════════════
+        
+        Tu n'es PAS un simple listeur de données. Tu es un ANALYSTE INTELLIGENT.
+        
+        📊 RÈGLE 1 : PROUVER CHAQUE AFFIRMATION
+        ❌ INTERDIT : "Ce projet a des alertes critiques"
+        ✅ OBLIGATOIRE : "Ce projet a 8 incidents ouverts (vs moyenne de 3 pour les autres projets)"
+        
+        → Chaque chiffre, tendance ou observation DOIT être justifié par des données concrètes.
+        
+        📈 RÈGLE 2 : ANALYSES COMPARATIVES SYSTÉMATIQUES
+        Quand tu présentes des données :
+        - Calcule la MOYENNE des autres éléments similaires
+        - Identifie les ÉCARTS (en % ou en valeur absolue)
+        - Mentionne le MIN et MAX si pertinent
+        - Utilise des termes comparatifs : "40% de moins que", "2x plus que", "en dessous de la moyenne"
+        
+        Exemple :
+        ❌ "Route Tenkodogo : 180M FCFA dépensés"
+        ✅ "Route Tenkodogo : 180M FCFA dépensés (36% du budget vs 65% en moyenne pour les autres projets = sous-exécution de -29 points)"
+        
+        💡 RÈGLE 3 : INSIGHTS PROACTIFS OBLIGATOIRES
+        Après chaque réponse factuelle, AJOUTE une observation :
+        - 🔴 Alertes/Risques : "⚠️ Attention, ce taux suggère un blocage"
+        - 🟢 Points positifs : "✅ Bonne maîtrise budgétaire"
+        - 💡 Suggestions : "Recommandation : audit de ce chantier"
+        - 📊 Tendances : "Tendance à la hausse depuis 2 mois"
+        
+        📋 RÈGLE 4 : FORMAT RICHE ET COMPLET
+        Quand tu listes des projets/stocks/incidents :
+        - Utilise des TABLEAUX avec TOUTES les colonnes pertinentes
+        - Ajoute une colonne "Observation" ou "Statut" pour contextualiser
+        - Inclus les métriques clés même si non demandées explicitement
+        
+        Exemple pour "projets avec alertes critiques" :
+        | Projet | Incidents | FE Liquidés | Dépenses | Taux Exec. | Observation |
+        |--------|-----------|-------------|----------|------------|-------------|
+        | Route X | 8 🔴 | 12/45 (27%) | 180M | 36% | ⚠️ Sous-exécution sévère |
+        
+        🎯 RÈGLE 5 : CONTEXTUALISER LES CHIFFRES
+        Ne jamais donner un chiffre brut sans contexte :
+        - "12 incidents" → "12 incidents (vs 5 en moyenne)"
+        - "500M FCFA" → "500M FCFA (2e plus gros budget après Projet Y)"
+        - "30% d'exécution" → "30% d'exécution (retard de 35 points par rapport au planning)"
+        
+        ═══════════════════════════════════════════════════════════════
+        
+        6. **Réponses** : Toujours en Français, professionnel mais ANALYTIQUE. Ne te limite pas à 3-4 lignes si l'analyse le justifie.`
       },
       ...history,
       { role: "user", content: userMessage }
@@ -225,15 +729,18 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
         console.log(`Calling tool: ${functionName}`, functionArgs)
 
         try {
+          console.log(`🔧 [AI Agent] Calling tool: ${functionName}`, functionArgs)
           const toolResponse = await aiTools[functionName](functionArgs, phoneNumber)
+          console.log(`✅ [AI Agent] Tool ${functionName} succeeded, result type:`, typeof toolResponse)
           sessionMessages.push({
             tool_call_id: toolCall.id,
             role: "tool",
             name: functionName,
             content: JSON.stringify(toolResponse),
           })
-        } catch (err) {
-          console.error(`Error calling ${functionName}:`, err)
+        } catch (err: any) {
+          console.error(`❌ [AI Agent] Error calling ${functionName}:`, err.message)
+          console.error(`📚 [AI Agent] Stack:`, err.stack)
           sessionMessages.push({
             tool_call_id: toolCall.id,
             role: "tool",
@@ -255,6 +762,11 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
 
       // Extraire les résultats des outils pour vérifier la taille
       const toolResults = sessionMessages.filter(msg => msg.role === 'tool')
+
+      // Déclarer snapshotData et snapshotTool en dehors pour utilisation ultérieure
+      let snapshotData: any = null
+      let snapshotTool = ''
+
       const hasLargeDataset = toolResults.some(result => {
         try {
           const parsed = JSON.parse(result.content)
@@ -287,9 +799,6 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
           else if (toolsUsed.includes('get_projects')) resourceType = 'projets'
 
           // Identify the primary tool data to snapshot
-          let snapshotData = null
-          let snapshotTool = ''
-
           for (const res of toolResults) {
             try {
               const parsed = JSON.parse(res.content)
@@ -342,8 +851,52 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
 
       await updateSession(phoneNumber, 'IDLE', { history: newHistory })
 
+      // Générer menu interactif si applicable
+      let interactiveMenu = null
+
+      // Si get_projects avec plusieurs résultats → Liste
+      if (toolsUsed.includes('get_projects') && snapshotData && Array.isArray(snapshotData) && snapshotData.length > 3) {
+        try {
+          const projectRows = snapshotData.slice(0, 10).map((p: any) => ({
+            id: `project_${p.projet_id}`,
+            title: p.nom_projet?.substring(0, 24) || p.projet_id,
+            description: `${p.ville_village || ''} • ${fmtFCFA(p.montant_ht_fcfa)}`.substring(0, 72)
+          }))
+
+          interactiveMenu = createListMessage(
+            `J'ai trouvé ${snapshotData.length} projet(s). Sélectionnez-en un pour plus de détails :`,
+            'Voir les projets',
+            [{ title: 'Projets', rows: projectRows }],
+            { footer: 'ASI-BF SGI' }
+          )
+        } catch (err) {
+          console.error('Erreur génération liste projets:', err)
+        }
+      }
+
+      // Si get_incidents avec plusieurs résultats → Liste
+      if (toolsUsed.includes('get_incidents') && snapshotData && Array.isArray(snapshotData) && snapshotData.length > 3) {
+        try {
+          const incidentRows = snapshotData.slice(0, 10).map((inc: any) => ({
+            id: `incident_${inc.incident_id || inc.numero_incident}`,
+            title: inc.type_incident?.substring(0, 24) || 'Incident',
+            description: `${inc.lieu || ''} • ${inc.gravite || ''}`.substring(0, 72)
+          }))
+
+          interactiveMenu = createListMessage(
+            `J'ai trouvé ${snapshotData.length} incident(s). Sélectionnez-en un pour plus de détails :`,
+            'Voir les incidents',
+            [{ title: 'Incidents', rows: incidentRows }],
+            { footer: 'ASI-BF SGI' }
+          )
+        } catch (err) {
+          console.error('Erreur génération liste incidents:', err)
+        }
+      }
+
       return {
         response: finalContent,
+        interactive: interactiveMenu,
         action: 'ai/processed'
       }
     }

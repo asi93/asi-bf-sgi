@@ -21,6 +21,13 @@ export type SessionState =
     | 'WAITING_FOR_SIGNALEMENT_NEW_ECHEANCE'
     | 'WAITING_FOR_SIGNALEMENT_NEW_PERSONNE'
     | 'WAITING_FOR_PROJECT_ID_FINANCES'
+    // Nouveaux workflows menu
+    | 'WORKFLOW_INCIDENT_TYPE'
+    | 'WORKFLOW_INCIDENT_PROJECT'
+    | 'WORKFLOW_INCIDENT_DESCRIPTION'
+    | 'WORKFLOW_INCIDENT_PHOTO'
+    | 'WORKFLOW_MEDIA_PROJECT'
+    | 'WORKFLOW_MEDIA_UPLOAD'
 
 export interface SessionData {
     incidentType?: string

@@ -1,11 +1,14 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import AppLayout from '@/components/layout/AppLayout'
 import { formatDate } from '@/lib/utils'
-import { Search, AlertTriangle, AlertCircle, CheckCircle, X, ExternalLink, Calendar, User, MapPin, Building, Info, FileText } from 'lucide-react'
+import { Search, AlertTriangle, AlertCircle, CheckCircle, X, ExternalLink, Calendar, User, MapPin, Building, Info, FileText, ImageIcon } from 'lucide-react'
 
 interface Signalement {
+    id?: number
     signalement_id: string
     item: string
     pays: string
@@ -21,6 +24,7 @@ interface Signalement {
     rapport_avancement: any[]
     jours_restants: number
     priorite: number
+    photo_url?: string
 }
 
 interface Stats {
@@ -33,6 +37,7 @@ interface Stats {
 }
 
 export default function SignalementsPage() {
+    const router = useRouter()
     const [signalements, setSignalements] = useState<Signalement[]>([])
     const [stats, setStats] = useState<Stats | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -168,6 +173,7 @@ export default function SignalementsPage() {
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 border-b text-gray-600 font-semibold">
                             <tr>
+                                <th className="px-4 py-3 w-16">Photo</th>
                                 <th className="px-4 py-3">Signalement</th>
                                 <th className="px-4 py-3">Chantier / Pays</th>
                                 <th className="px-4 py-3">Responsable</th>
@@ -178,14 +184,37 @@ export default function SignalementsPage() {
                         </thead>
                         <tbody className="divide-y text-gray-700">
                             {isLoading ? (
-                                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Chargement des données...</td></tr>
+                                <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Chargement des données...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Aucun signalement trouvé</td></tr>
+                                <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Aucun signalement trouvé</td></tr>
                             ) : (
                                 filtered.map(item => {
                                     const status = getStatusConfig(item.statut)
+
+                                    const handleRowClick = () => {
+                                        if (item.id) {
+                                            router.push(`/signalements/${item.id}`)
+                                        }
+                                    }
+
                                     return (
-                                        <tr key={item.signalement_id} className="hover:bg-blue-50/30 transition-colors cursor-pointer group" onClick={() => setSelectedItem(item)}>
+                                        <tr key={item.signalement_id} className="hover:bg-blue-50/30 transition-colors cursor-pointer group" onClick={handleRowClick}>
+                                            <td className="px-4 py-3">
+                                                {item.photo_url ? (
+                                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
+                                                        <Image
+                                                            src={item.photo_url}
+                                                            alt="Photo"
+                                                            fill
+                                                            className="object-cover"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                                                        <ImageIcon className="w-5 h-5 text-gray-300" />
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-gray-900">{item.signalement_id}</span>
@@ -231,7 +260,7 @@ export default function SignalementsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <button className="p-1.5 hover:bg-white rounded-lg transition-all group-hover:scale-110 group-hover:text-blue-600">
+                                                <button className="p-1.5 hover:bg-white rounded-lg transition-all group-hover:scale-110 group-hover:text-blue-600" onClick={(e) => { e.stopPropagation(); handleRowClick(); }}>
                                                     <ExternalLink className="w-4 h-4" />
                                                 </button>
                                             </td>

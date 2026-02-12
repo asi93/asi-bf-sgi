@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import AppLayout from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { formatMontant } from '@/lib/utils'
-import { Search, Filter, MapPin, Calendar, TrendingUp } from 'lucide-react'
+import { Search, Filter, MapPin, Calendar, TrendingUp, ExternalLink } from 'lucide-react'
 
 interface Projet {
   projet_id: string
@@ -24,6 +26,7 @@ interface Projet {
 }
 
 export default function ProjetsPage() {
+  const router = useRouter()
   const [projets, setProjets] = useState<Projet[]>([])
   const [filtered, setFiltered] = useState<Projet[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -157,16 +160,21 @@ export default function ProjetsPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Financement</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Statut</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Performance</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Chargement...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Chargement...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Aucun projet trouvé</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Aucun projet trouvé</td></tr>
               ) : (
                 filtered.map(projet => (
-                  <tr key={projet.projet_id} className="hover:bg-gray-50">
+                  <tr
+                    key={projet.projet_id}
+                    className="hover:bg-blue-50/30 transition-colors cursor-pointer group"
+                    onClick={() => router.push(`/projets/${projet.projet_id}`)}
+                  >
                     <td className="px-4 py-3">
                       <div>
                         <p className="font-medium text-gray-900">{projet.acronyme || projet.projet_id}</p>
@@ -192,6 +200,17 @@ export default function ProjetsPage() {
                       <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getPerformanceColor(projet.niveau_performance)}`}>
                         {projet.niveau_performance}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        className="p-1.5 hover:bg-white rounded-lg transition-all group-hover:scale-110 group-hover:text-blue-600"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          router.push(`/projets/${projet.projet_id}`)
+                        }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))
