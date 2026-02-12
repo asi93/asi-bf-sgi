@@ -261,8 +261,7 @@ export function createActionMenu(): WhatsAppInteractive {
             {
                 title: '💡 Intelligence',
                 rows: [
-                    { id: 'action_insights_ia', title: '💡 Insights IA', description: 'Analyses intelligentes' },
-                    { id: 'action_timeline_risques', title: '📅 Prochains Risques', description: 'Timeline prédictive 30j' }
+                    { id: 'action_insights_ia', title: 'Insights & Risques', description: 'Analyses IA et prédictions' }
                 ]
             },
             {
@@ -271,9 +270,7 @@ export function createActionMenu(): WhatsAppInteractive {
                     { id: 'action_kpis', title: 'KPIs globaux', description: 'Vue d\'ensemble complète' },
                     { id: 'action_projets', title: 'État des projets', description: 'Suivi des projets en cours' },
                     { id: 'action_stocks', title: 'État des stocks', description: 'Alertes et disponibilité' },
-                    { id: 'action_equipements', title: 'Parc équipements', description: 'Disponibilité et maintenance' },
-                    { id: 'action_gife', title: 'Analyse financière', description: 'Dépenses et budgets' },
-                    { id: 'action_assistance', title: 'Assistance IA', description: 'Poser une question' }
+                    { id: 'action_gife', title: 'Analyse financière', description: 'Dépenses et budgets' }
                 ]
             }
         ],
