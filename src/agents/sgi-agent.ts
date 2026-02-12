@@ -148,6 +148,7 @@ export interface AIResponse {
   action?: string
   interactive?: any
   error?: string
+  tool_calls?: any
 }
 
 // Formater la date
@@ -279,7 +280,7 @@ function detectIntent(message: string): DetectedIntent {
 /**
  * Traite une requête utilisateur via l'IA OpenAI
  */
-export async function processQuery(query: string, history: any[] = [], phoneNumber?: string) {
+export async function processQuery(query: string, history: any[] = [], phoneNumber?: string): Promise<AIResponse> {
   let userMessage = query
   const isWhatsApp = phoneNumber && !phoneNumber.startsWith('WEB_')
   const systemPrompt = isWhatsApp ? WHATSAPP_SYSTEM_PROMPT : WEB_SYSTEM_PROMPT
