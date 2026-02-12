@@ -236,6 +236,32 @@ export async function POST(request: NextRequest) {
     }
 
     // ========================================
+    // ⭐ COMMANDE GLOBALE "MENU" / "ANNULER"
+    // ========================================
+    if (messageType === 'text') {
+      const commandText = messageText.toLowerCase().trim()
+
+      if (['menu', 'annuler', 'quitter', 'stop', 'retour'].includes(commandText)) {
+        console.log(`🔄 Commande globale détectée: ${commandText}`)
+
+        const { getSession: getSess, clearSession: clearSess } = await import('@/lib/whatsapp/session')
+        const currentSession = await getSess(from)
+
+        // Si workflow actif, nettoyer
+        if (currentSession.state?.startsWith('WORKFLOW_')) {
+          console.log(`✅ Workflow ${currentSession.state} annulé par commande globale`)
+          await clearSess(from)
+        }
+
+        // Afficher menu principal
+        const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+
+        return NextResponse.json({ status: 'ok', message: 'Menu displayed' })
+      }
+    }
+
+    // ========================================
     // Sauvegarder le message reçu dans Supabase
     // ========================================
     const supabase = createServerClient()
@@ -630,6 +656,28 @@ export async function POST(request: NextRequest) {
         await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
         return NextResponse.json({ status: 'ok' })
       }
+    }
+
+    // ========================================
+    // ⭐ Vérifier et nettoyer session avant IA
+    // ========================================
+    const { getSession: getSessionBeforeAI, clearSession: clearSessionBeforeAI } = await import('@/lib/whatsapp/session')
+    const sessionBeforeAI = await getSessionBeforeAI(from)
+
+    // Si session workflow active MAIS on arrive ici = user veut poser question libre
+    if (sessionBeforeAI.state?.startsWith('WORKFLOW_')) {
+      console.log(`⚠️ Session workflow active: ${sessionBeforeAI.state}`)
+      console.log(`💡 Mais message ne correspond à aucun workflow → Question libre détectée`)
+      console.log(`🔄 Nettoyage de la session pour permettre usage libre de l'IA`)
+
+      await clearSessionBeforeAI(from)
+
+      // Optionnel : Informer l'utilisateur (mais bref pour ne pas polluer)
+      await sendWhatsAppMessage(
+        from,
+        phoneNumberId,
+        `ℹ️ Workflow précédent annulé.\n\n💬 Je réponds à votre question...`
+      )
     }
 
     // ========================================
