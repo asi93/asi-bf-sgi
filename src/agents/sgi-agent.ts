@@ -535,7 +535,7 @@ export async function processQuery(query: string, history: any[] = [], phoneNumb
 
       for (const toolCall of message.tool_calls) {
         const functionName = toolCall.function.name as keyof typeof tools
-        const args = JSON.parse(toolCall.function.body || toolCall.function.arguments)
+        const args = JSON.parse(toolCall.function.arguments)
 
         console.log(`🛠️ Appel outil: ${functionName}`, args)
 
