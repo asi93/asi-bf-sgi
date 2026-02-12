@@ -244,6 +244,21 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
       userMessage = 'Donne-moi une vue d\'ensemble complète des KPIs : projets, finances, stocks, équipements, incidents, et alertes.'
     }
 
+    // Action: Projets en cours
+    if (userMessage === 'action_projets' || userMessage === 'Affiche les projets en cours') {
+      userMessage = 'Liste les projets en cours avec leur avancement et statut'
+    }
+
+    // Action: Stocks et alertes
+    if (userMessage === 'action_stocks' || userMessage === 'Affiche les stocks et alertes') {
+      userMessage = 'Quels articles sont en stock critique ou en alerte? Montre les stocks faibles.'
+    }
+
+    // Action: Analyse financière
+    if (userMessage === 'action_gife' || userMessage === 'Analyse financière globale') {
+      userMessage = 'Analyse financière globale : budgets totaux, dépenses engagées et liquidées, taux d\'exécution moyen'
+    }
+
     // Action: Insights IA
     if (userMessage === 'action_insights_ia') {
       try {
@@ -590,7 +605,12 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
         await clearSession(phoneNumber)
 
         return {
-          response: `✅ **Upload Terminé**\n\n${photoCount} photo(s) ajoutée(s) au projet **${session.data.projectName}**.\n\nElles sont maintenant visibles dans la galerie.`
+          response: `✅ **Upload Terminé**\n\n${photoCount} photo(s) ajoutée(s) au projet **${session.data.projectName}**.\n\nElles sont maintenant visibles dans la galerie.`,
+          interactive: createButtonsMessage(
+            'Que souhaitez-vous faire ensuite ?',
+            [{ id: 'menu', title: '📋 Menu' }],
+            { footer: 'ASI-BF SGI' }
+          )
         }
       }
 
@@ -2010,6 +2030,23 @@ export async function processQuery(userMessage: string, _conversationHistory: Ar
 
     const normalizedQuery = userMessage.toLowerCase().trim()
 
+    // --- INTERCEPT SPECIAL TOKENS (must be BEFORE menu keyword check) ---
+    // These tokens come from the webhook and must be routed to processQueryWithAI
+    // which has the proper handlers for workflows and menu actions
+    if (userMessage.startsWith('[START_WORKFLOW:') || userMessage === '[SHOW_ACTION_MENU]') {
+      if (phoneNumber) {
+        return await processQueryWithAI(userMessage, phoneNumber)
+      }
+    }
+
+    // Route menu action IDs directly to processQueryWithAI
+    const menuActionIds = ['action_kpis', 'action_insights_ia', 'action_timeline_risques', 'action_projets', 'action_stocks', 'action_gife']
+    if (menuActionIds.includes(userMessage)) {
+      if (phoneNumber) {
+        return await processQueryWithAI(userMessage, phoneNumber)
+      }
+    }
+
     // --- MENU PRINCIPAL (Sprint 12 & 15 FIX) ---
     const menuKeywords = ['menu', 'accueil', 'start', 'bonjour', 'salut', 'hello', 'home']
     const wantsMenu = menuKeywords.some(keyword => normalizedQuery.includes(keyword))
@@ -2017,7 +2054,7 @@ export async function processQuery(userMessage: string, _conversationHistory: Ar
     if (wantsMenu && !['stock_search', 'stock_low'].includes(userMessage)) {
       if (phoneNumber) await clearSession(phoneNumber)
       return {
-        response: "Bienvenue sur ASI-ASSISTANT 2.0 🤖\n\nJe dispose de 18 outils pour vous aider !",
+        response: "👋 Bonjour !\n\nComment puis-je vous aider aujourd'hui ?",
         interactive: createActionMenu(),
         data: null,
         action: 'menu'

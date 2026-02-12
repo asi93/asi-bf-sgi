@@ -272,27 +272,20 @@ export function createActionMenu(): WhatsAppInteractive {
             {
                 title: '📸 Médias',
                 rows: [
+                    { id: 'action_ajouter_medias', title: 'Ajouter médias', description: 'Uploader photos/vidéos' },
                     { id: 'action_galerie', title: 'Galerie photos', description: 'Voir les photos par projet' }
-                ]
-            },
-            {
-                title: '💡 Intelligence',
-                rows: [
-                    { id: 'action_insights_ia', title: 'Insights & Risques', description: 'Analyses IA et prédictions' }
                 ]
             },
             {
                 title: '📊 KPIs & Analyses',
                 rows: [
                     { id: 'action_kpis', title: 'KPIs globaux', description: 'Vue d\'ensemble complète' },
-                    { id: 'action_projets', title: 'État des projets', description: 'Suivi des projets en cours' },
-                    { id: 'action_stocks', title: 'État des stocks', description: 'Alertes et disponibilité' },
                     { id: 'action_gife', title: 'Analyse financière', description: 'Dépenses et budgets' }
                 ]
             }
         ],
         {
-            header: '📋 Menu Actions V2',
+            header: '📋 Actions Rapides',
             footer: 'ASI-BF SGI'
         }
     )

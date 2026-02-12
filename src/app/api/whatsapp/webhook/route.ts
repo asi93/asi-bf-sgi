@@ -121,10 +121,26 @@ export async function POST(request: NextRequest) {
           messageText = '[START_WORKFLOW:ajouter_medias]'
         } else if (listReply.id === 'action_documents') {
           messageText = 'Affiche les documents du projet'
-        } else if (listReply.id === 'action_galerie_photos') {
+        } else if (listReply.id === 'action_galerie' || listReply.id === 'action_galerie_photos') {
           messageText = 'Affiche la galerie des photos par projet'
         }
-        // KPIs
+        // KPIs & Analyses (new menu V2)
+        else if (listReply.id === 'action_kpis') {
+          messageText = 'action_kpis'
+        } else if (listReply.id === 'action_projets') {
+          messageText = 'action_projets'
+        } else if (listReply.id === 'action_stocks') {
+          messageText = 'action_stocks'
+        } else if (listReply.id === 'action_gife') {
+          messageText = 'action_gife'
+        }
+        // Intelligence
+        else if (listReply.id === 'action_insights_ia') {
+          messageText = 'action_insights_ia'
+        } else if (listReply.id === 'action_timeline_risques') {
+          messageText = 'action_timeline_risques'
+        }
+        // KPIs (legacy)
         else if (listReply.id === 'kpi_global') {
           messageText = 'Montre-moi les KPIs globaux (vue d\'ensemble de tous les projets, budgets, avancement, incidents)'
         } else if (listReply.id === 'kpi_finances') {
