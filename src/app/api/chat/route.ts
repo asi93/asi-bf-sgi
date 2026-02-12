@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { processQueryWithAI } from '@/agents/sgi-agent'
+import { processQuery } from '@/agents/sgi-agent'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Utiliser le MÊME orchestrateur IA que WhatsApp (Sprint 14)
-    const result = await processQueryWithAI(message, '', history || [])
+    const result = await processQuery(message, history || [])
 
     return NextResponse.json({
       response: result.response,
