@@ -174,9 +174,9 @@ export async function POST(request: NextRequest) {
         else if (listReply.id === 'kpi_global') {
           messageText = 'Montre-moi les KPIs globaux (vue d\'ensemble de tous les projets, budgets, avancement, incidents)'
         } else if (listReply.id === 'kpi_finances') {
-          messageText = 'Affiche les KPIs financiers: budgets consommés, d\u00E9penses, trésorerie'
+          messageText = 'Affiche les KPIs financiers: budgets consommés, denses, trésorerie'
         } else if (listReply.id === 'kpi_operations') {
-          messageText = 'Affiche les KPIs opérationnels: avancement des chantiers et d\u00E9lais'
+          messageText = 'Affiche les KPIs opérationnels: avancement des chantiers et délais'
         } else if (listReply.id === 'kpi_securite') {
           messageText = 'Affiche les KPIs de sécurité: incidents, taux de gravité, zones à risque'
         } else if (listReply.id === 'kpi_ressources') {
@@ -648,7 +648,7 @@ export async function POST(request: NextRequest) {
       await sendWhatsAppMessage(
         from,
         phoneNumberId,
-        '⚠️ D\u00E9solé, le système est temporairement indisponible. Veuillez réessayer dans quelques instants.'
+        '⚠️ Désolé, le système est temporairement indisponible. Veuillez réessayer dans quelques instants.'
       )
 
       return NextResponse.json({
@@ -676,7 +676,7 @@ export async function POST(request: NextRequest) {
 
       // Adapter pour WhatsApp (limite 4000 caractères)
       if (text.length > 3900) {
-        text = text.substring(0, 3900) + '... (tronqu\u00E9)'
+        text = text.substring(0, 3900) + '... (tronqué)'
       }
 
       await sendWhatsAppMessage(from, phoneNumberId, text)
