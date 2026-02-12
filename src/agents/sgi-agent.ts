@@ -534,42 +534,7 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
       }
     }
 
-    // 📸 WORKFLOWS - Ajouter médias
-    if (userMessage === '[START_WORKFLOW:ajouter_medias]') {
-      console.log('📸 [AI Agent] Starting media upload workflow')
 
-      // Récupérer les projets actifs
-      const supabase = createServerClient()
-      const { data: projets } = await supabase
-        .from('projets')
-        .select('projet_id, nom, statut')
-        .in('statut', ['En cours', 'Démarrage'])
-        .order('nom')
-        .limit(20)
-
-      if (!projets || projets.length === 0) {
-        return {
-          response: `📸 **Ajouter des Médias**\n\n❌ Aucun projet actif trouvé.\n\nVeuillez d'abord créer un projet.`
-        }
-      }
-
-      await updateSession(phoneNumber, 'WORKFLOW_MEDIA_PROJECT', {})
-
-      const rows = projets.map(p => ({
-        id: `media_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
-        description: p.statut
-      }))
-
-      return {
-        response: `📸 **Ajouter des Médias**\n\nSélectionnez le projet :`,
-        interactive: createListMessage(
-          'Choisissez un projet :',
-          'Projets actifs',
-          [{ title: 'Projets actifs', rows }]
-        )
-      }
-    }
 
     // === GESTION DES WORKFLOWS MULTI-ÉTAPES ===
     const session = await getSession(phoneNumber)
@@ -734,40 +699,7 @@ export async function processQueryWithAI(userMessage: string, phoneNumber: strin
       }
     }
 
-    // WORKFLOW MEDIA - Étape 3 : Sauvegarde photos
-    if (session.state === 'WORKFLOW_MEDIA_UPLOAD') {
-      if (userMessage.toLowerCase() === 'terminer') {
-        const photoCount = session.data.photoCount || 0
-        await clearSession(phoneNumber)
 
-        return {
-          response: `✅ **Upload Terminé**\n\n${photoCount} photo(s) ajoutée(s) au projet **${session.data.projectName}**.\n\nElles sont maintenant visibles dans la galerie.`,
-          interactive: createButtonsMessage(
-            'Que souhaitez-vous faire ensuite ?',
-            [{ id: 'menu', title: '📋 Menu' }],
-            { footer: 'ASI-BF SGI' }
-          )
-        }
-      }
-
-      // Photo reçue (gérée par webhook)
-      if (session.data.lastPhotoUrl) {
-        const photoCount = (session.data.photoCount || 0) + 1
-        await updateSession(phoneNumber, 'WORKFLOW_MEDIA_UPLOAD', {
-          ...session.data,
-          photoCount,
-          lastPhotoUrl: null
-        })
-
-        return {
-          response: `✅ Photo ${photoCount} enregistrée.\n\nEnvoyez d'autres photos ou tapez "terminer".`
-        }
-      }
-
-      return {
-        response: `📸 En attente de vos photos...\n\nTapez "terminer" pour finaliser.`
-      }
-    }
 
     // Récupérer la session pour l'historique
     const history = externalHistory || session.data.history || []

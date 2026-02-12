@@ -5,6 +5,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Client pour le côté client (browser)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const createBrowserClient = () => createClient(supabaseUrl, supabaseAnonKey)
 
 // Client pour le côté serveur avec service role (admin)
 export function createServerClient() {

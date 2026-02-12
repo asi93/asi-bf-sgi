@@ -24,15 +24,24 @@ export type SessionState =
     // Nouveaux workflows menu
     | 'WORKFLOW_INCIDENT_TYPE'
     | 'WORKFLOW_INCIDENT_PROJECT'
+    | 'WORKFLOW_INCIDENT_PROJECT_SEARCH'
+    | 'WORKFLOW_INCIDENT_PROJECT_SELECT'
     | 'WORKFLOW_INCIDENT_DESCRIPTION'
+    | 'WORKFLOW_INCIDENT_OBSERVATIONS'
+    | 'WORKFLOW_INCIDENT_URGENCY'
     | 'WORKFLOW_INCIDENT_PHOTO'
+    | 'WORKFLOW_INCIDENT_VALIDATE'
     | 'WORKFLOW_MEDIA_PROJECT'
+    | 'WORKFLOW_MEDIA_PROJECT_SEARCH'
+    | 'WORKFLOW_MEDIA_PROJECT_SELECT'
     | 'WORKFLOW_MEDIA_UPLOAD'
+    | 'WORKFLOW_MEDIA_VALIDATE'
 
 export interface SessionData {
     incidentType?: string
     incidentDescription?: string
     incidentPhotoId?: string
+    mediaUrls?: string[]  // Pour uploads multiples
     history?: any[]
     [key: string]: any
 }

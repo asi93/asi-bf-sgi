@@ -114,15 +114,36 @@ export async function POST(request: NextRequest) {
         if (listReply.id === 'action_signaler_incident') {
           messageText = '[START_WORKFLOW:signaler_incident]'
         } else if (listReply.id === 'action_carte_incidents') {
-          messageText = 'Affiche la liste complète des incidents'
+          // 🔧 FIX: Envoyer lien direct au lieu de passer par l'IA
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `📊 **Liste des Incidents**\n\nConsultez tous les incidents signalés :\n\nhttps://asi-bi.netlify.app/signalements`
+          )
+          return NextResponse.json({ status: 'ok' })
         }
         // Actions Médias
         else if (listReply.id === 'action_ajouter_medias') {
-          messageText = '[START_WORKFLOW:ajouter_medias]'
+          // Démarrer workflow médias avec recherche projet
+          const { getSession, updateSession } = await import('@/lib/whatsapp/session')
+          await updateSession(from, 'WORKFLOW_MEDIA_PROJECT_SEARCH', {})
+
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `📸 **Ajouter des Médias**\n\n🔍 Tapez le nom du chantier/projet :\n\n_Exemple : "Route", "AEP", "Tenkodogo"_`
+          )
+          return NextResponse.json({ status: 'ok' })
         } else if (listReply.id === 'action_documents') {
           messageText = 'Affiche les documents du projet'
         } else if (listReply.id === 'action_galerie' || listReply.id === 'action_galerie_photos') {
-          messageText = 'Affiche la galerie des photos par projet'
+          // 🔧 FIX: Envoyer lien direct au lieu de passer par l'IA
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `📸 **Galerie Photos**\n\nAccédez à la galerie complète :\n\nhttps://asi-bi.netlify.app/gallery`
+          )
+          return NextResponse.json({ status: 'ok' })
         }
         // KPIs & Analyses (new menu V2)
         else if (listReply.id === 'action_kpis') {
@@ -221,6 +242,192 @@ export async function POST(request: NextRequest) {
       },
       status: 'received',
     })
+
+    // ========================================
+    // WORKFLOW MÉDIAS - Gestion des étapes
+    // ========================================
+    const { getSession, updateSession, clearSession } = await import('@/lib/whatsapp/session')
+    const session = await getSession(from)
+
+    // Étape 2: Recherche projet (user tape le nom)
+    if (session.state === 'WORKFLOW_MEDIA_PROJECT_SEARCH') {
+      const searchTerm = messageText.toLowerCase().trim()
+
+      if (searchTerm === 'annuler') {
+        await clearSession(from)
+        const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // Rechercher projets
+      const { data: projets } = await supabase
+        .from('projets')
+        .select('projet_id, nom, statut')
+        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
+        .order('nom')
+        .limit(20)
+
+      if (!projets || projets.length === 0) {
+        await sendWhatsAppMessage(
+          from,
+          phoneNumberId,
+          `❌ Aucun projet trouvé pour "${searchTerm}".\n\n🔄 Essayez un autre nom ou tapez "annuler" pour quitter.`
+        )
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      await updateSession(from, 'WORKFLOW_MEDIA_PROJECT_SELECT', { searchTerm })
+
+      const { createListMessage } = await import('@/lib/whatsapp/interactive')
+      const rows = projets.map(p => ({
+        id: `media_project_${p.projet_id}`,
+        title: p.nom.substring(0, 24),
+        description: p.statut
+      }))
+
+      const listMessage = createListMessage(
+        'Sélectionnez le projet :',
+        'Projets trouvés',
+        [{ title: 'Projets trouvés', rows }]
+      )
+
+      await sendWhatsAppInteractiveMessage(from, phoneNumberId, listMessage)
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 3: Sélection projet (via liste interactive)
+    if (session.state === 'WORKFLOW_MEDIA_PROJECT_SELECT' && interactiveContext?.id.startsWith('media_project_')) {
+      const projectId = interactiveContext.id.replace('media_project_', '')
+
+      const { data: projet } = await supabase
+        .from('projets')
+        .select('nom')
+        .eq('projet_id', projectId)
+        .single()
+
+      await updateSession(from, 'WORKFLOW_MEDIA_UPLOAD', {
+        projectId,
+        projectName: projet?.nom || 'Projet inconnu',
+        mediaUrls: []
+      })
+
+      await sendWhatsAppMessage(
+        from,
+        phoneNumberId,
+        `Projet : **${projet?.nom}** ✅\n\n📸 Envoyez vos photos/vidéos :\n\n_Vous pouvez envoyer plusieurs médias. Tapez "terminé" quand vous avez fini._`
+      )
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // Étape 4: Upload médias (images reçues)
+    if (session.state === 'WORKFLOW_MEDIA_UPLOAD') {
+      // Si c'est une image
+      if (messageType === 'image' && messageText.startsWith('[IMAGE:')) {
+        const imageUrl = messageText.replace('[IMAGE:', '').replace(']', '')
+        const mediaUrls = session.data.mediaUrls || []
+        mediaUrls.push(imageUrl)
+
+        await updateSession(from, 'WORKFLOW_MEDIA_UPLOAD', {
+          ...session.data,
+          mediaUrls
+        })
+
+        await sendWhatsAppMessage(
+          from,
+          phoneNumberId,
+          `✅ Photo ${mediaUrls.length} enregistrée.\n\nEnvoyez d'autres photos ou tapez "terminé".`
+        )
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // Si user tape "terminé"
+      if (messageText.toLowerCase() === 'terminé' || messageText.toLowerCase() === 'termine') {
+        const mediaCount = session.data.mediaUrls?.length || 0
+
+        if (mediaCount === 0) {
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `❌ Aucun média envoyé.\n\nEnvoyez au moins une photo ou tapez "annuler" pour quitter.`
+          )
+          return NextResponse.json({ status: 'ok' })
+        }
+
+        await updateSession(from, 'WORKFLOW_MEDIA_VALIDATE', session.data)
+
+        const { createListMessage } = await import('@/lib/whatsapp/interactive')
+        const summary = `📋 **Récapitulatif** :\n\n• Projet : ${session.data.projectName}\n• Médias : ${mediaCount} photo(s) 📸\n\n✅ Confirmer l'envoi ?`
+
+        const confirmMessage = createListMessage(
+          'Confirmer ?',
+          'Actions',
+          [{
+            title: 'Actions',
+            rows: [
+              { id: 'media_confirm', title: '✅ Confirmer', description: 'Enregistrer les médias' },
+              { id: 'media_cancel', title: '❌ Annuler', description: 'Recommencer' }
+            ]
+          }]
+        )
+
+        await sendWhatsAppMessage(from, phoneNumberId, summary)
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, confirmMessage)
+        return NextResponse.json({ status: 'ok' })
+      }
+    }
+
+    // Étape 5: Validation finale
+    if (session.state === 'WORKFLOW_MEDIA_VALIDATE') {
+      if (interactiveContext?.id === 'media_cancel') {
+        await clearSession(from)
+        const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+        await sendWhatsAppMessage(
+          from,
+          phoneNumberId,
+          `❌ Upload annulé.\n\nRetour au menu principal.`
+        )
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      if (interactiveContext?.id === 'media_confirm') {
+        const mediaUrls = session.data.mediaUrls || []
+
+        // Insérer toutes les photos dans la table photos
+        const photosToInsert = mediaUrls.map(url => ({
+          projet_id: session.data.projectId,
+          url,
+          uploaded_by: from,
+          created_at: new Date().toISOString()
+        }))
+
+        const { error } = await supabase
+          .from('photos')
+          .insert(photosToInsert)
+
+        await clearSession(from)
+
+        if (error) {
+          console.error('Error saving photos:', error)
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `❌ Erreur lors de l'enregistrement des médias.\n\nVeuillez réessayer.`
+          )
+        } else {
+          await sendWhatsAppMessage(
+            from,
+            phoneNumberId,
+            `✅ **Médias Enregistrés**\n\n📋 **Détails** :\n• Projet : ${session.data.projectName}\n• Médias : ${mediaUrls.length} photo(s) ajoutées ✅\n\n🔗 Voir la galerie complète :\nhttps://asi-bi.netlify.app/gallery`
+          )
+        }
+
+        const { createActionMenu } = await import('@/lib/whatsapp/interactive')
+        await sendWhatsAppInteractiveMessage(from, phoneNumberId, createActionMenu())
+        return NextResponse.json({ status: 'ok' })
+      }
+    }
 
     // ========================================
     // Appeler l'Agent IA pour traiter la question
