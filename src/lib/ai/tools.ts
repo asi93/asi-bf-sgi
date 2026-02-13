@@ -870,5 +870,35 @@ export const openAITools = [
                 required: ['item', 'problem', 'action', 'deadline']
             }
         }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'generate_chart',
+            description: "Génère un graphique (barres, courbes, camembert) pour visualiser des données. Utilisez cet outil pour tout besoin de visualisation.",
+            parameters: {
+                type: 'object',
+                properties: {
+                    type: { type: 'string', enum: ['bar', 'line', 'pie', 'doughnut', 'radar'], description: "Type de graphique" },
+                    title: { type: 'string', description: "Titre du graphique" },
+                    data: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                label: { type: 'string' },
+                                value: { type: 'number' }
+                            },
+                            required: ['label', 'value']
+                        },
+                        description: "Données à afficher"
+                    },
+                    xAxisLabel: { type: 'string', description: "Libellé axe X (optionnel)" },
+                    yAxisLabel: { type: 'string', description: "Libellé axe Y (optionnel)" },
+                    colors: { type: 'array', items: { type: 'string' }, description: "Couleurs personnalisées (hex, optionnel)" }
+                },
+                required: ['type', 'title', 'data']
+            }
+        }
     }
 ]

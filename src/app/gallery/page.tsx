@@ -34,13 +34,13 @@ export default function GalleryPage() {
         // Récupérer photos de la table photos
         const { data: photosData } = await supabase
             .from('photos')
-            .select('id, url, created_at, projet_id, projets(nom)')
+            .select('id, url, created_at, projet_id, projets(nom_projet)')
             .order('created_at', { ascending: false })
 
         // Récupérer photos des signalements
         const { data: signalementsData } = await supabase
             .from('signalements')
-            .select('id, photo_url, created_at, projet_id, projets(nom)')
+            .select('id, photo_url, created_at, projet_id, projets(nom_projet)')
             .not('photo_url', 'is', null)
             .order('created_at', { ascending: false })
 
@@ -50,7 +50,7 @@ export default function GalleryPage() {
         // Ajouter photos de la table photos
         photosData?.forEach((photo: any) => {
             const projectId = photo.projet_id
-            const projectName = photo.projets?.nom || 'Projet inconnu'
+            const projectName = photo.projets?.nom_projet || 'Projet inconnu'
 
             if (!projectMap.has(projectId)) {
                 projectMap.set(projectId, {
@@ -70,7 +70,7 @@ export default function GalleryPage() {
         // Ajouter photos des signalements
         signalementsData?.forEach((signalement: any) => {
             const projectId = signalement.projet_id
-            const projectName = signalement.projets?.nom || 'Projet inconnu'
+            const projectName = signalement.projets?.nom_projet || 'Projet inconnu'
 
             if (!projectMap.has(projectId)) {
                 projectMap.set(projectId, {

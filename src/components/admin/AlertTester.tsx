@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Bell, Play, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/client' // Import to verify compilation
+import { runManualAlertChecks } from '@/app/actions/alerts'
 
 export default function AlertTester() {
     const [isRunning, setIsRunning] = useState(false)
@@ -12,25 +12,17 @@ export default function AlertTester() {
         setIsRunning(true)
         setResult(null)
         try {
-            // Simulate API call
-            // In real scenario this would call /api/cron/alerts
-            await new Promise(resolve => setTimeout(resolve, 2000))
-
-            setResult({
-                success: true,
-                results: {
-                    checks: 12,
-                    alertsCreated: 1,
-                    notificationsSent: 1,
-                    details: [
-                        "Alerte Stock: Ciment (Rupture)",
-                        "Alerte Budget: Projet Route A4 (105%)",
-                        "Notification WhatsApp envoyée"
-                    ]
-                }
-            })
+            const response = await runManualAlertChecks()
+            if (response.success) {
+                setResult({
+                    success: true,
+                    results: response.results
+                })
+            } else {
+                setResult({ success: false, error: response.error })
+            }
         } catch (error) {
-            setResult({ success: false, error: 'Erreur lors du test' })
+            setResult({ success: false, error: 'Erreur lors de l\'exécution' })
         } finally {
             setIsRunning(false)
         }

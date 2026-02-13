@@ -8,6 +8,7 @@ import { createServerClient } from '@/lib/supabase'
 import { processQuery } from '@/agents/sgi-agent'
 import { sendWhatsAppMessage, sendWhatsAppInteractiveMessage } from '@/lib/whatsapp/client'
 import { processMedia } from '@/lib/whatsapp/media'
+import { sendEmail, createBaseEmailTemplate } from '@/lib/email/client'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'asi-bf-2026-secure'
 const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN
@@ -297,9 +298,9 @@ export async function POST(request: NextRequest) {
 
       const { data: projets } = await supabase
         .from('projets')
-        .select('projet_id, nom, localisation')
-        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
-        .order('nom')
+        .select('projet_id, nom_projet, ville_village, acronyme')
+        .or(`nom_projet.ilike.%${searchTerm}%,acronyme.ilike.%${searchTerm}%,ville_village.ilike.%${searchTerm}%,projet_id.ilike.%${searchTerm}%`)
+        .order('nom_projet')
         .limit(10)
 
       if (!projets || projets.length === 0) {
@@ -316,8 +317,8 @@ export async function POST(request: NextRequest) {
       const { createListMessage } = await import('@/lib/whatsapp/interactive')
       const rows = projets.map(p => ({
         id: `incident_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
-        description: p.localisation ? p.localisation.substring(0, 72) : '...'
+        title: p.nom_projet.substring(0, 24),
+        description: p.ville_village ? p.ville_village.substring(0, 72) : (p.acronyme || '...')
       }))
 
       const listMessage = createListMessage(
@@ -336,13 +337,13 @@ export async function POST(request: NextRequest) {
 
       const { data: projet } = await supabase
         .from('projets')
-        .select('nom')
+        .select('nom_projet')
         .eq('projet_id', projectId)
         .single()
 
       await updateSession(from, 'WORKFLOW_INCIDENT_CATEGORY', {
         projectId,
-        projectName: projet?.nom
+        projectName: projet?.nom_projet
       })
 
       const { createCategoryList } = await import('@/lib/whatsapp/interactive')
@@ -446,6 +447,33 @@ export async function POST(request: NextRequest) {
         console.error('Error creating incident:', error)
         await sendWhatsAppMessage(from, phoneNumberId, '❌ Erreur lors de l\'enregistrement. Veuillez réessayer.')
       } else {
+        // Envoi notification email
+        try {
+          const emailHtml = createBaseEmailTemplate(
+            '🚨 Nouvel Incident Signalé (WhatsApp)',
+            `
+            <div class="stat-box">
+              <p><strong>Projet:</strong> ${session.data.projectName}</p>
+              <p><strong>Catégorie:</strong> ${session.data.categoryId}</p>
+              <p><strong>Gravité:</strong> ${session.data.severityId}</p>
+              <p><strong>Description:</strong> ${session.data.description}</p>
+              <p><strong>Signalé par:</strong> ${from} (WhatsApp)</p>
+            </div>
+            <p><a href="https://asi-bi.netlify.app/signalements" class="button">Voir le signalement</a></p>
+            `,
+            'Alerte immédiate'
+          )
+
+          await sendEmail({
+            to: ['asibfmail@gmail.com'],
+            subject: `[ALERTE] Incident - ${session.data.projectName}`,
+            html: emailHtml
+          })
+          console.log('📧 Email alerte incident envoyé pour', from)
+        } catch (emailErr) {
+          console.error('❌ Erreur envoi email alerte:', emailErr)
+        }
+
         await sendWhatsAppMessage(
           from,
           phoneNumberId,
@@ -477,9 +505,9 @@ export async function POST(request: NextRequest) {
       // Rechercher projets
       const { data: projets } = await supabase
         .from('projets')
-        .select('projet_id, nom, statut')
-        .or(`nom.ilike.%${searchTerm}%,localisation.ilike.%${searchTerm}%`)
-        .order('nom')
+        .select('projet_id, nom_projet, statut, ville_village, acronyme')
+        .or(`nom_projet.ilike.%${searchTerm}%,acronyme.ilike.%${searchTerm}%,ville_village.ilike.%${searchTerm}%,projet_id.ilike.%${searchTerm}%`)
+        .order('nom_projet')
         .limit(20)
 
       if (!projets || projets.length === 0) {
@@ -496,7 +524,7 @@ export async function POST(request: NextRequest) {
       const { createListMessage } = await import('@/lib/whatsapp/interactive')
       const rows = projets.map(p => ({
         id: `media_project_${p.projet_id}`,
-        title: p.nom.substring(0, 24),
+        title: p.nom_projet.substring(0, 24),
         description: p.statut
       }))
 
@@ -516,20 +544,20 @@ export async function POST(request: NextRequest) {
 
       const { data: projet } = await supabase
         .from('projets')
-        .select('nom')
+        .select('nom_projet')
         .eq('projet_id', projectId)
         .single()
 
       await updateSession(from, 'WORKFLOW_MEDIA_UPLOAD', {
         projectId,
-        projectName: projet?.nom || 'Projet inconnu',
+        projectName: projet?.nom_projet || 'Projet inconnu',
         mediaUrls: []
       })
 
       await sendWhatsAppMessage(
         from,
         phoneNumberId,
-        `Projet : **${projet?.nom}** ✅\n\n📸 Envoyez vos photos/vidéos :\n\n_Vous pouvez envoyer plusieurs médias. Tapez "terminé" quand vous avez fini._`
+        `Projet : **${projet?.nom_projet}** ✅\n\n📸 Envoyez vos photos/vidéos :\n\n_Vous pouvez envoyer plusieurs médias. Tapez "terminé" quand vous avez fini._`
       )
       return NextResponse.json({ status: 'ok' })
     }
@@ -645,6 +673,32 @@ export async function POST(request: NextRequest) {
             `❌ Erreur lors de l'enregistrement des médias.\n\nVeuillez réessayer.`
           )
         } else {
+          // Envoi notification email
+          try {
+            const emailHtml = createBaseEmailTemplate(
+              '📸 Nouveaux Médias Ajoutés (WhatsApp)',
+              `
+              <div class="success">
+                <p><strong>Projet:</strong> ${session.data.projectName}</p>
+                <p><strong>Nombre de photos:</strong> ${mediaUrls.length}</p>
+                <p><strong>Envoyé par:</strong> ${from} (WhatsApp)</p>
+              </div>
+              <p>Des nouvelles photos ont été ajoutées à la galerie du projet.</p>
+              <p><a href="https://asi-bi.netlify.app/gallery" class="button">Voir la galerie</a></p>
+              `,
+              'Mise à jour chantier'
+            )
+
+            await sendEmail({
+              to: ['admin@asi-bf.com', 'dg@asi-bf.com'],
+              subject: `[PHOTOS] Nouveau contenu - ${session.data.projectName}`,
+              html: emailHtml
+            })
+            console.log('📧 Email alerte médias envoyé pour', from)
+          } catch (emailErr) {
+            console.error('❌ Erreur envoi email médias:', emailErr)
+          }
+
           await sendWhatsAppMessage(
             from,
             phoneNumberId,

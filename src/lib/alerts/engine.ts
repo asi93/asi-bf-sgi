@@ -87,31 +87,23 @@ export async function runAlertChecks() {
 
                 // Send Notifications (if priority is high)
                 if (alert.priority <= 2) {
-                    // 1. Fetch Email Recipients
-                    const { data: emailSubs } = await supabase
-                        .from('email_subscriptions')
-                        .select('email')
-                        .eq('is_active', true)
-                        .or(`alert_type.eq.all,alert_type.eq.${alert.type}`)
-
-                    if (emailSubs && emailSubs.length > 0 && process.env.RESEND_API_KEY) {
-                        for (const sub of emailSubs) {
-                            try {
-                                await resend.emails.send({
-                                    from: 'ASI-BI <alerts@resend.dev>',
-                                    to: sub.email,
-                                    subject: `🚨 ${alert.title}`,
-                                    html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                                            <h2 style="color: #d32f2f;">${alert.title}</h2>
-                                            <p style="font-size: 16px; color: #333;">${alert.message}</p>
-                                            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                                            <p style="font-size: 12px; text-align: center; color: #888;">Ceci est une notification automatique de votre assistant ASI-TRACK.</p>
-                                           </div>`
-                                })
-                                results.notificationsSent++
-                            } catch (e) {
-                                console.error(`Erreur envoi email à ${sub.email}:`, e)
-                            }
+                    // 1. Send Email to Admin/DG
+                    if (process.env.RESEND_API_KEY) {
+                        try {
+                            await resend.emails.send({
+                                from: 'ASI-BI <alerts@resend.dev>',
+                                to: 'asibfmail@gmail.com',
+                                subject: `🚨 ${alert.title}`,
+                                html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                                        <h2 style="color: #d32f2f;">${alert.title}</h2>
+                                        <p style="font-size: 16px; color: #333;">${alert.message}</p>
+                                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                                        <p style="font-size: 12px; text-align: center; color: #888;">Ceci est une notification automatique de votre assistant ASI-TRACK.</p>
+                                       </div>`
+                            })
+                            results.notificationsSent++
+                        } catch (e) {
+                            console.error(`Erreur envoi email alerte à asibfmail@gmail.com:`, e)
                         }
                     }
 
