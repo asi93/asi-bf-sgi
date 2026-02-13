@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
                     timeframe: getTimeframe(jours_avant_rupture),
                     severity: jours_avant_rupture <= 3 ? 'critical' : jours_avant_rupture <= 7 ? 'warning' : 'info',
                     category: 'stock',
-                    title: `Rupture stock ${stock.nom}`,
+                    title: `Rupture stock ${stock.designation}`,
                     description: `Stock restant: ${stock.quantite_actuelle} ${stock.unite}. Consommation: ${consommationMoy} ${stock.unite}/jour.`,
                     impact: {
                         financial: stock.prix_unitaire * stock.quantite_actuelle,
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
                 timeframe: '7-15j',
                 severity: marge < ca * 0.05 ? 'critical' : 'warning', // < 5% marge
                 category: 'budget',
-                title: `Risque dépassement budget ${projet.nom || projet.projet_id}`,
+                title: `Risque dépassement budget ${projet.nom_projet || projet.projet_id}`,
                 description: `Exécution à ${tauxExecution}%. Marge restante: ${(marge / 1000000).toFixed(1)}M FCFA.`,
                 impact: {
                     financial: marge,
