@@ -235,6 +235,14 @@ export const tools = {
     },
 
     create_incident: async (args: z.infer<typeof CreateIncidentSchema>, phoneNumber: string) => {
+        // 🚨 WHATSAPP REDIRECT: Prevent direct AI creation on WhatsApp
+        if (phoneNumber && !phoneNumber.startsWith('WEB_')) {
+            return {
+                success: false,
+                message: "Pour signaler un incident sur WhatsApp, veuillez utiliser le menu interactif : [Menu] > [🚨 Signaler un incident]."
+            }
+        }
+
         const supabase = createServerClient()
         const { data, error } = await supabase.from('incidents').insert({
             type_incident: args.type,
@@ -500,6 +508,14 @@ export const tools = {
     },
 
     create_signalement: async (args: z.infer<typeof CreateSignalementSchema>, phoneNumber: string) => {
+        // 🚨 WHATSAPP REDIRECT: Prevent direct AI creation on WhatsApp
+        if (phoneNumber && !phoneNumber.startsWith('WEB_')) {
+            return {
+                success: false,
+                message: "Pour ajouter un signalement sur WhatsApp, veuillez utiliser le menu interactif : [Menu] > [📸 Ajouter médias] ou [🚨 Signaler un incident]."
+            }
+        }
+
         const supabase = createServerClient()
         const { data, error } = await supabase.from('signalements').insert({
             item: args.item,
@@ -782,13 +798,14 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'get_purchase_orders',
-            description: "Bons de commande fournisseurs.",
+            description: "Liste les bons de commande et les achats.",
             parameters: {
                 type: 'object',
                 properties: {
-                    supplier: { type: 'string', description: "Nom du fournisseur" },
+                    supplier: { type: 'string' },
                     status: { type: 'string' },
-                    category: { type: 'string' }
+                    category: { type: 'string' },
+                    search: { type: 'string' }
                 }
             }
         }
@@ -797,12 +814,12 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'get_imports',
-            description: "Registre des importations.",
+            description: "Suivi des importations et de la logistique internationale.",
             parameters: {
                 type: 'object',
                 properties: {
                     status: { type: 'string' },
-                    country: { type: 'string', description: "Pays d'origine" }
+                    country: { type: 'string' }
                 }
             }
         }
@@ -811,12 +828,12 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'get_insurances',
-            description: "Polices d'assurance.",
+            description: "Consulte les polices d'assurance et leurs échéances.",
             parameters: {
                 type: 'object',
                 properties: {
-                    type: { type: 'string', description: "Type d'assurance" },
-                    expiring_soon: { type: 'boolean', description: "Assurances expirant dans 30 jours" }
+                    type: { type: 'string' },
+                    expiring_soon: { type: 'boolean' }
                 }
             }
         }
@@ -825,13 +842,13 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'get_signalements',
-            description: "Signalements Top 20 (problèmes à résoudre rapidement).",
+            description: "Liste les signalements Top 20 (incidents chantiers).",
             parameters: {
                 type: 'object',
                 properties: {
                     project_id: { type: 'string' },
                     status: { type: 'string' },
-                    overdue: { type: 'boolean', description: "Uniquement les signalements en retard" }
+                    overdue: { type: 'boolean' }
                 }
             }
         }
@@ -840,15 +857,15 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'create_signalement',
-            description: "Crée un nouveau signalement (Top 20).",
+            description: "Crée un nouveau signalement Top 20 pour un projet.",
             parameters: {
                 type: 'object',
                 properties: {
-                    item: { type: 'string', description: "Élément concerné" },
-                    problem: { type: 'string', description: "Problème identifié" },
-                    action: { type: 'string', description: "Action à entreprendre" },
-                    deadline: { type: 'string', description: "Date limite (YYYY-MM-DD)" },
-                    project_id: { type: 'string', description: "ID du projet" }
+                    item: { type: 'string' },
+                    problem: { type: 'string' },
+                    action: { type: 'string' },
+                    deadline: { type: 'string' },
+                    project_id: { type: 'string' }
                 },
                 required: ['item', 'problem', 'action', 'deadline']
             }
@@ -858,61 +875,27 @@ export const openAITools = [
         type: 'function',
         function: {
             name: 'generate_chart',
-            description: `Generate a chart to visualize data. Use this when the user asks for graphs, charts, or visual representations of data.
-            
-            Chart types:
-            - bar: Compare values across categories (e.g., budgets by project)
-            - line: Show trends over time (e.g., incidents per month)
-            - pie: Show proportions/distribution (e.g., expense breakdown)
-            - scatter: Show correlations between two variables
-            - area: Show cumulative trends over time
-            
-            Always use this tool when data would be clearer as a visual representation.`,
+            description: "Génère un graphique (barres, courbes, camembert) pour visualiser des données. Utilisez cet outil pour tout besoin de visualisation.",
             parameters: {
                 type: 'object',
                 properties: {
-                    type: {
-                        type: 'string',
-                        enum: ['bar', 'line', 'pie', 'scatter', 'area'],
-                        description: 'Type of chart to generate'
-                    },
-                    title: {
-                        type: 'string',
-                        description: 'Chart title (e.g., "Budgets par Projet")'
-                    },
+                    type: { type: 'string', enum: ['bar', 'line', 'pie', 'doughnut', 'radar'], description: "Type de graphique" },
+                    title: { type: 'string', description: "Titre du graphique" },
                     data: {
                         type: 'array',
                         items: {
                             type: 'object',
                             properties: {
-                                label: {
-                                    type: 'string',
-                                    description: 'Label for this data point (e.g., project name, month)'
-                                },
-                                value: {
-                                    type: 'number',
-                                    description: 'Numeric value for this data point'
-                                }
+                                label: { type: 'string' },
+                                value: { type: 'number' }
                             },
                             required: ['label', 'value']
                         },
-                        description: 'Array of data points to plot'
+                        description: "Données à afficher"
                     },
-                    xAxisLabel: {
-                        type: 'string',
-                        description: 'Label for X axis (optional)'
-                    },
-                    yAxisLabel: {
-                        type: 'string',
-                        description: 'Label for Y axis (optional, e.g., "FCFA", "Nombre")'
-                    },
-                    colors: {
-                        type: 'array',
-                        items: {
-                            type: 'string'
-                        },
-                        description: 'Optional array of hex colors for the chart'
-                    }
+                    xAxisLabel: { type: 'string', description: "Libellé axe X (optionnel)" },
+                    yAxisLabel: { type: 'string', description: "Libellé axe Y (optionnel)" },
+                    colors: { type: 'array', items: { type: 'string' }, description: "Couleurs personnalisées (hex, optionnel)" }
                 },
                 required: ['type', 'title', 'data']
             }
