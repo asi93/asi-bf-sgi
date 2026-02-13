@@ -100,7 +100,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
 
                 <div className="flex items-start justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">{projet.nom}</h1>
+                        <h1 className="text-3xl font-bold mb-2">{projet.nom_projet}</h1>
                         <div className="flex items-center gap-4 text-muted-foreground">
                             <div className="flex items-center gap-1">
                                 <MapPin className="h-4 w-4" />
